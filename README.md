@@ -1,2 +1,2 @@
-# IKP2020-
+# IKP2020
 Projekat iz predmeta Industrijski Komunikacioni Protokoli
