@@ -112,8 +112,8 @@ int  main(void)
             iResult = recv(acceptedSocket, recvbuf, DEFAULT_BUFLEN, 0);
             if (iResult > 0)
             {
-				// recvbuf[iResult] = '\0';  // ne znam da li treba ?!
-                printf("Message received from client: %s.\n", recvbuf);
+				recvbuf[iResult] = '\0';  // ne znam da li treba ?!
+                printf("Message received from client: %s\n", recvbuf);
             }
             else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na klijentskoj strani
             {
