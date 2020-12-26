@@ -75,7 +75,7 @@ int main()
 
 	unsigned char username[MAX];
 	unsigned char communication_type[MAX];
-	unsigned char message[DEFAULT_BUFLEN];
+	char *message = (char*)malloc(DEFAULT_BUFLEN);
 	bool direktna = false;
 	Message_For_Client packet;
 
@@ -109,18 +109,24 @@ int main()
 
 			printf("Unesite naziv klijenta kome zelite da posaljete poruku:\n");
 			scanf("%s", &username);
+			getchar();
 			strcpy((char*)packet.username, (const char*)username);
+			
 			printf("%s\n", packet.username);
 			printf("Unesite poruku:\n");
 			// NE MOGU DA UCITAM VISE RECII.......
-			//scanf("%s",&message);
-			unsigned char *str = (unsigned char *)malloc(DEFAULT_BUFLEN);
+			
+			//scanf_s("%s", message, DEFAULT_BUFLEN);
+			fgets(message, DEFAULT_BUFLEN, stdin);
+
+			//unsigned char *str = (unsigned char *)malloc(DEFAULT_BUFLEN);
+
 			/*while (strcmp(gets_s((char*)str, 10), "\n") == 0) {
 
 			}*/
 			//fgets((char*)str, 100, stdin);
 
-
+			printf("%s\n\n", message);
 		}
 
 
