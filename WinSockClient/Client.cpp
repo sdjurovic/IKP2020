@@ -12,7 +12,8 @@
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 27016
-#define MAX 50
+#define MAX_USERNAME 40
+#define MAX_MESSAGE 472
 
 #define SERVER_IP_ADDRESS "127.0.0.1"  // DODALA
 
@@ -31,10 +32,8 @@ int main()
 
 	struct Message_For_Client
 	{
-		unsigned char username[MAX];
-		unsigned int length;   // !??!
-		unsigned char message[DEFAULT_BUFLEN];
-
+		unsigned char username[MAX_USERNAME];
+		unsigned char message[MAX_MESSAGE];
 	};
 
 
@@ -73,23 +72,22 @@ int main()
 		WSACleanup();
 	}
 
-	unsigned char username[MAX];
-	unsigned char communication_type[MAX];
-	char* message = (char*)malloc(DEFAULT_BUFLEN);
-	bool direktna = false;
+	unsigned char username[MAX_USERNAME];
+	unsigned char communication_type[MAX_USERNAME];
+	unsigned char message[MAX_MESSAGE];
+	bool directly = false;
 	Message_For_Client packet;
 
+	printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\nUnesite Vase korisnicko ime:\n");
+	scanf("%s", &username);
+	// Send an prepared message with null terminator included
+	iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
+	// ova nit ce ovde biti blokirana jer ne moze dalje da nastavi dok se ne registruje uspesno...
+		// RECV: ovde ide kod za primanje poruke od servera
+			// ako je neuspesno: ispisi to i zavrti ovo od gore
+			// ako je uspesno: ispisi to i nastavi dalje
+	// ako je uspesno:
 	while (true) {
-
-		printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\nUnesite Vase korisnicko ime:\n");
-		scanf("%s", &username);
-		// Send an prepared message with null terminator included
-		iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
-		// ova nit ce ovde biti blokirana jer ne moze dalje da nastavi dok se ne registruje uspesno...
-			// ovde ide kod za primanje poruke od servera
-				// ako je neuspesno: ispisi to i zavrti ovo od gore
-				// ako je uspesno: ispisi to i nastavi dalje
-		// ako je uspesno:
 
 		do {
 			printf("Trenutan nacin komunikacije sa klijentima je preko servera.\nDa li zelite direktno da komunicirate sa klijentima? (da/ne)\n");
@@ -100,41 +98,30 @@ int main()
 			}
 
 			if (strcmp((const char*)communication_type, "da") == 0) {
-				direktna = true;
+				directly = true;
 			}
 
 		} while (strcmp((const char*)communication_type, "da") != 0 && strcmp((const char*)communication_type, "ne") != 0);
 
-		if (direktna == false) {
+		if (directly == false) {
 
 			printf("Unesite naziv klijenta kome zelite da posaljete poruku:\n");
 			scanf("%s", &username);
 			getchar();
-
-			strcpy((char*)packet.username, (const char*)username);
-			printf("%s\n", packet.username);
+			strcpy((char*)packet.username, (char*)username);
+			//printf("%s\n", packet.username);
 			printf("Unesite poruku:\n");
-			// NE MOGU DA UCITAM VISE RECII.......
-
-			fgets(message, DEFAULT_BUFLEN, stdin);
-			printf("Poruka: %s\n\n", message);
-
-			//scanf("%s",&message);
-			unsigned char *str = (unsigned char *)malloc(DEFAULT_BUFLEN);
-			/*while (strcmp(gets_s((char*)str, 10), "\n") == 0) {
-
-			}*/
-			//fgets((char*)str, 100, stdin);
-
-
+			fgets((char*)message, MAX_MESSAGE, stdin);
+			//printf("Poruka: %sbroj bajta: %d\n", message, strlen((char*)message));
+			//int broj = strlen((const char*)message);
+			//unsigned char deo = (unsigned char)message[strlen((const char*)message)];  // \0
+			//strcpy((char*)message[strlen((const char*)message) - 1], (const char*)deo);  // skidam novi red
+			strcpy((char*)packet.message, (char*)message);
+			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);  // sizeof(Message_For_Client)
+			// RECV: ispis poruke od servera
+			Sleep(2000);
 		}
-
-
 	}
-
-
-
-
 
 	if (iResult == SOCKET_ERROR)
 	{
@@ -145,7 +132,7 @@ int main()
 	}
 
 	//printf("Bytes Sent: %ld\n", iResult);
-	printf("Message successfully sent. Total bytes: %ld\n", iResult);
+	//printf("Message successfully sent. Total bytes: %ld\n", iResult);
 
 
 	/*--------------------------------------------------------------------------------------------------*/
