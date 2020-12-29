@@ -27,16 +27,12 @@ int main()
 	SOCKET connectSocket = INVALID_SOCKET;
 	// variable used to store function return value
 	int iResult;
-	// message to send
-	//char *messageToSend = "this is a test";
 
-	struct Message_For_Client
+	struct Message_For_Client  // ovo ide u .h
 	{
 		unsigned char username[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
 	};
-
-
 
 
 	if (InitializeWindowsSockets() == false)
@@ -74,19 +70,101 @@ int main()
 
 	unsigned char username[MAX_USERNAME];
 	unsigned char communication_type[MAX_USERNAME];
-	unsigned char message[MAX_MESSAGE];
+	//unsigned char message[MAX_MESSAGE];
+	char *message = (char*)malloc(MAX_MESSAGE);
 	bool directly = false;
 	Message_For_Client packet;
 
-	printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\nUnesite Vase korisnicko ime:\n");
-	scanf("%s", &username);
-	// Send an prepared message with null terminator included
-	iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
-	// ova nit ce ovde biti blokirana jer ne moze dalje da nastavi dok se ne registruje uspesno...
-		// RECV: ovde ide kod za primanje poruke od servera
-			// ako je neuspesno: ispisi to i zavrti ovo od gore
-			// ako je uspesno: ispisi to i nastavi dalje
-	// ako je uspesno:
+	char recvbuf[DEFAULT_BUFLEN];
+
+	while (true) {
+
+		printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\nUnesite Vase korisnicko ime:\n");
+		scanf("%s", &username);
+		iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("send failed with error: %d\n", WSAGetLastError());
+			closesocket(connectSocket);
+			WSACleanup();
+			return 1;
+		}
+		
+		// primanje odgovora od servera
+		// Receive data until the client shuts down the connection
+		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);
+		if (iResult > 0)
+		{
+			//recvbuf[iResult] = '\0';
+			//printf("Message received from server: %s\n", recvbuf);
+			if (strcmp(&recvbuf[0], "1") == 0) {
+				printf("Uspesno ste se registrovali!\n\n");
+				break;
+			}
+			else if (strcmp(&recvbuf[0], "0") == 0) {
+				printf("Vec postoji klijent sa username-om koji ste uneli. Pokusajte opet:\n\n");
+			}
+			else {
+				printf("Pokusajte ponovo:\n");
+			}
+
+		}
+		else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
+		{
+			//connection was closed gracefully
+			//printf("Connection with server closed.\n");
+			printf("Server vise nije dostupan!\n");
+			// Shutdown the connection since we're done
+			iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
+			// Check if connection is succesfully shut down.
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("Shutdown failed with error: %d\n", WSAGetLastError());
+				closesocket(connectSocket);
+				WSACleanup();
+				return 1;
+			}
+
+			printf("\nPress any key to exit: ");
+			_getch(); // da bi sacekao nas znak da zatvori socket
+
+			closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+			WSACleanup();
+			
+			return 0;
+
+		}
+		else  // ako je server nasilno zatvoren
+		{
+			// there was an error during recv
+			//printf("recv failed with error: %d\n", WSAGetLastError());
+			//closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+			printf("Server vise nije dostupan!\n");
+			// Shutdown the connection since we're done
+			iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
+			// Check if connection is succesfully shut down.
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("Shutdown failed with error: %d\n", WSAGetLastError());
+				closesocket(connectSocket);
+				WSACleanup();
+				return 1;
+			}
+
+			printf("\nPress any key to exit: ");
+			_getch(); // da bi sacekao nas znak da zatvori socket
+
+			closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+			WSACleanup();
+
+			return 0;
+			
+		}
+		
+	}
+
+	// odavde bi trebalo da se ukljuci i druga nit koja ce primati poruke od klijenta (za oba tipa komunikacije)
+
 	while (true) {
 
 		do {
@@ -111,33 +189,93 @@ int main()
 			strcpy((char*)packet.username, (char*)username);
 			//printf("%s\n", packet.username);
 			printf("Unesite poruku:\n");
-			fgets((char*)message, MAX_MESSAGE, stdin);
-			//printf("Poruka: %sbroj bajta: %d\n", message, strlen((char*)message));
-			//int broj = strlen((const char*)message);
-			//unsigned char deo = (unsigned char)message[strlen((const char*)message)];  // \0
-			//strcpy((char*)message[strlen((const char*)message) - 1], (const char*)deo);  // skidam novi red
+			fgets(message, MAX_MESSAGE, stdin);
+			//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
+			message[strlen(message) - 1] = message[strlen(message)];  // skidam novi red
 			strcpy((char*)packet.message, (char*)message);
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);  // sizeof(Message_For_Client)
-			// RECV: ispis poruke od servera
-			Sleep(2000);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("send failed with error: %d\n", WSAGetLastError());
+				closesocket(connectSocket);
+				WSACleanup();
+				return 1;
+			}
+			// primanje odgovora od servera
+			// Receive data until the client shuts down the connection
+			iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
+			if (iResult > 0)  
+			{
+				//recvbuf[iResult] = '\0';
+				//printf("Message received from server: %s\n", recvbuf);
+				printf("%s\n\n", recvbuf);
+
+			}
+			else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
+			{
+				//connection was closed gracefully
+				//printf("Connection with server closed.\n");
+				printf("Server vise nije dostupan!\n");
+				// Shutdown the connection since we're done
+				iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
+				// Check if connection is succesfully shut down.
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+				printf("\nPress any key to exit: ");
+				_getch(); // da bi sacekao nas znak da zatvori socket
+
+				free(message);
+
+				closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+				WSACleanup();
+
+				return 0;
+
+			}
+			else  // ako je server nasilno zatvoren
+			{
+				// there was an error during recv
+				//printf("recv failed with error: %d\n", WSAGetLastError());
+				//closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+				printf("Server vise nije dostupan!\n");
+				// Shutdown the connection since we're done
+				iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
+				// Check if connection is succesfully shut down.
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+				printf("\nPress any key to exit: ");
+				_getch(); // da bi sacekao nas znak da zatvori socket
+
+				free(message);
+
+				closesocket(connectSocket);  // zatvara se konekcija sa tim serverom
+				WSACleanup();
+
+				return 0;
+
+			}
+
+
+
 		}
 	}
 
-	if (iResult == SOCKET_ERROR)
-	{
-		printf("send failed with error: %d\n", WSAGetLastError());
-		closesocket(connectSocket);
-		WSACleanup();
-		return 1;
-	}
-
-	//printf("Bytes Sent: %ld\n", iResult);
-	//printf("Message successfully sent. Total bytes: %ld\n", iResult);
-
-
+	
 	/*--------------------------------------------------------------------------------------------------*/
 	// Shutdown the connection since we're done
-	/*iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
+	iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
 	// Check if connection is succesfully shut down.
 	if (iResult == SOCKET_ERROR)
 	{
@@ -145,19 +283,22 @@ int main()
 		closesocket(connectSocket);
 		WSACleanup();
 		return 1;
-	}*/
+	}
 	/*--------------------------------------------------------------------------------------------------*/
 
 	// DODALA:
 	printf("\nPress any key to exit: ");
 	_getch(); // da bi sacekao nas znak da zatvori socket
 
+	free(message);
 
 	// cleanup
 	closesocket(connectSocket);
 	WSACleanup();
 
 	return 0;
+
+	
 }
 
 bool InitializeWindowsSockets()
