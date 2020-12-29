@@ -1,7 +1,7 @@
 #include <ws2tcpip.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#include "../HashMap/HashMap.cpp"
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "27016"
@@ -149,7 +149,6 @@ int  main(void)
     closesocket(listenSocket);
     closesocket(acceptedSocket);
     WSACleanup();
-
     return 0;
 }
 
