@@ -1,7 +1,7 @@
 #include <ws2tcpip.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "../HashMap/HashMap.cpp"
+#include "../PeerToPeer/HashMap.h"
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "27016"
@@ -10,6 +10,7 @@ bool InitializeWindowsSockets();
 
 int  main(void) 
 {
+	InitializeHashMap();
     // Socket used for listening for new clients 
     SOCKET listenSocket = INVALID_SOCKET;
     // Socket used for communication with client

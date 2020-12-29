@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="HashMap">
+      <UniqueIdentifier>{e4d85d9e-4576-4909-bfd1-0cc8c78a1943}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -22,12 +25,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HashMap.h">
-      <Filter>Header Files</Filter>
+      <Filter>HashMap</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="HashMap.cpp">
+    <ClCompile Include="PeerToPeer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HashMap.cpp">
+      <Filter>HashMap</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

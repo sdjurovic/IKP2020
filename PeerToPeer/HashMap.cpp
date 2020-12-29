@@ -1,9 +1,6 @@
-#pragma once
-#include "../HashMap/HashMap.h"
-#include <stdlib.h>
+#include "pch.h"
+#include "HashMap.h"
 #include <stdio.h>
-#include <windows.h>
-#include <conio.h>
 
 unsigned long GenerateHashValue(unsigned char *str)
 {
