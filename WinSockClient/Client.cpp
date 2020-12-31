@@ -95,7 +95,7 @@ int main()
 		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);
 		if (iResult > 0)
 		{
-			//recvbuf[iResult] = '\0';
+			recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			if (strcmp(&recvbuf[0], "1") == 0) {
 				printf("Uspesno ste se registrovali!\n\n");

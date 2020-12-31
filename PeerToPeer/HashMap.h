@@ -19,5 +19,6 @@ void ShowHashMap();
 bool AddValueToHashMap(ClientData *clientData);
 ClientData* FindValueInHashMap(unsigned char *clientName);
 bool RemoveValueFromHashMap(unsigned char *clientName);
+bool ClientExistsInHashMap(unsigned char *name);
 
 #endif

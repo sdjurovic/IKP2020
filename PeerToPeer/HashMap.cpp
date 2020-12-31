@@ -60,3 +60,13 @@ bool RemoveValueFromHashMap(unsigned char *clientName)
 	}
 	return false;
 }
+
+bool ClientExistsInHashMap(unsigned char *name)
+{
+	unsigned long key = GenerateHashValue(name) % MAXSIZE;
+	if (HashMap[key] != NULL)
+	{
+		return true;
+	}
+	return false;
+}
