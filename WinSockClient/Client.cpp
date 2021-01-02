@@ -77,9 +77,11 @@ int main()
 
 	char recvbuf[DEFAULT_BUFLEN];
 
+	printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\n");
+
 	while (true) {
 
-		printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\nUnesite Vase korisnicko ime:\n");
+		printf("Unesite Vase korisnicko ime:\n");
 		scanf("%s", &username);
 		iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
 		if (iResult == SOCKET_ERROR)
@@ -98,14 +100,14 @@ int main()
 			recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			if (strcmp(&recvbuf[0], "1") == 0) {
-				printf("Uspesno ste se registrovali!\n\n");
+				printf("\nUspesno ste se registrovali!\n");
 				break;
 			}
 			else if (strcmp(&recvbuf[0], "0") == 0) {
-				printf("Vec postoji klijent sa username-om koji ste uneli. Pokusajte opet:\n\n");
+				printf("\nVec postoji klijent sa username-om koji ste uneli. Pokusajte opet:\n");
 			}
 			else {
-				printf("Pokusajte ponovo:\n");
+				printf("\nPokusajte ponovo:\n");
 			}
 
 		}
@@ -162,6 +164,7 @@ int main()
 		}
 		
 	}
+
 
 	// odavde bi trebalo da se ukljuci i druga nit koja ce primati poruke od klijenta (za oba tipa komunikacije)
 
