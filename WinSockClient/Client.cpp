@@ -12,8 +12,8 @@
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 27016
-#define MAX_USERNAME 40
-#define MAX_MESSAGE 472
+#define MAX_USERNAME 30
+#define MAX_MESSAGE 452
 
 #define SERVER_IP_ADDRESS "127.0.0.1"  // DODALA
 
@@ -30,7 +30,8 @@ int main()
 
 	struct Message_For_Client  // ovo ide u .h
 	{
-		unsigned char username[MAX_USERNAME];
+		unsigned char sender[MAX_USERNAME];
+		unsigned char receiver[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
 	};
 
@@ -68,7 +69,8 @@ int main()
 		WSACleanup();
 	}
 
-	unsigned char username[MAX_USERNAME];
+	unsigned char sender[MAX_USERNAME];
+	unsigned char receiver[MAX_USERNAME];
 	unsigned char communication_type[MAX_USERNAME];
 	//unsigned char message[MAX_MESSAGE];
 	char *message = (char*)malloc(MAX_MESSAGE);
@@ -82,8 +84,8 @@ int main()
 	while (true) {
 
 		printf("Unesite Vase korisnicko ime:\n");
-		scanf("%s", &username);
-		iResult = send(connectSocket, (const char*)&username, (int)strlen((const char*)&username) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
+		scanf("%s", &sender);
+		iResult = send(connectSocket, (const char*)&sender, (int)strlen((const char*)&sender) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
 		if (iResult == SOCKET_ERROR)
 		{
 			printf("send failed with error: %d\n", WSAGetLastError());
@@ -100,6 +102,7 @@ int main()
 			recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			if (strcmp(&recvbuf[0], "1") == 0) {
+				strcpy((char*)packet.sender, (char*)sender);
 				printf("\nUspesno ste se registrovali!\n");
 				break;
 			}
@@ -187,9 +190,9 @@ int main()
 		if (directly == false) {
 
 			printf("Unesite naziv klijenta kome zelite da posaljete poruku:\n");
-			scanf("%s", &username);
+			scanf("%s", &receiver);
 			getchar();
-			strcpy((char*)packet.username, (char*)username);
+			strcpy((char*)packet.receiver, (char*)receiver);
 			//printf("%s\n", packet.username);
 			printf("Unesite poruku:\n");
 			fgets(message, MAX_MESSAGE, stdin);
