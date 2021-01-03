@@ -7,6 +7,7 @@
 #define DEFAULT_PORT "27016"
 #define MAX_CLIENTS 10
 #define DEFAULT_ADDRESS "127.0.0.1"
+#define MAX_USERNAME 30
 
 bool InitializeWindowsSockets();
 bool CheckIfSocketIsConnected(SOCKET socket);
@@ -15,8 +16,12 @@ bool CheckIfSocketIsConnected(SOCKET socket);
 //void ReadFromSockets(SOCKET sockets[], int *socketsCount, fd_set* readfds);
 //void AcceptIncoming(SOCKET acceptedSockets[], int *freeIndex, SOCKET listenSocket, fd_set* readfds);
 
-
-
+struct Message_For_Client  // ovo ide u .h
+{
+	unsigned char sender[MAX_USERNAME];
+	unsigned char receiver[MAX_USERNAME];
+	unsigned char message[DEFAULT_BUFLEN];
+};
 int  main(void)
 {
 	// Socket used for listening for new clients 
@@ -177,20 +182,24 @@ int  main(void)
 			for (int i = 0; i < connectedSockets; i++)
 			{
 				
-				char recvbuf[DEFAULT_BUFLEN];
+				//char recvbuf[512];
+
 				for (int i = 0; i < connectedSockets; i++)
 				{
 					if (FD_ISSET(acceptedSockets[i], &readfds))
 					{
 						int iResult = recv(acceptedSockets[i], recvbuf, DEFAULT_BUFLEN, 0);
+						//memcpy(checkStruct, recvbuf, sizeof(recvbuf));
+
 						if (iResult > 0)
 						{
-							recvbuf[iResult] = '\0';
+							//recvbuf[MAX_USERNAME] = '\0';
+
 							//check if client is register
 							if (!ClientExistsInHashMap((unsigned char*)recvbuf))
 							{
 								printf("klijent ne postoji...\n");
-								
+
 								// name doesn't exists within the hashmap, register the name
 								ClientData *newClient = (ClientData*)malloc(sizeof(ClientData));
 
@@ -207,7 +216,6 @@ int  main(void)
 								inet_ntop(AF_INET, &socketAddress.sin_addr, clientAddress, INET_ADDRSTRLEN);
 
 								printf("%s\n", clientAddress);
-								
 								
 								memcpy(newClient->name, recvbuf, sizeof(recvbuf));
 								memcpy(newClient->address, clientAddress, sizeof(clientAddress));
@@ -237,20 +245,122 @@ int  main(void)
 							}
 							else
 							{
-								printf("ime je vec registrovano...\n");
-								char returnValue = '0';
-								iResult = send(acceptedSockets[i], (char*)&returnValue, sizeof(returnValue), 0);  // sizeof(Message_For_Client)
-								if (iResult == SOCKET_ERROR)
+								Message_For_Client* clientMessage = (Message_For_Client*)recvbuf;
+								if ((ClientExistsInHashMap((unsigned char*)clientMessage->sender)) && (ClientExistsInHashMap((unsigned char*)clientMessage->receiver)))
 								{
-									printf("send failed with error: %d\n", WSAGetLastError());
-									closesocket(acceptedSockets[i]);
-									acceptedSockets[connectedSockets] = INVALID_SOCKET;
-									for (int i = 0; i < connectedSockets; i++)
+									if (strcmp((const char*)clientMessage->receiver, (const char*)clientMessage->sender) == 0)
 									{
-										acceptedSockets[i] = acceptedSockets[i + 1];
+										printf("klijent ne moze proslediti poruku samom sebi!\n");
+										
+										char returnValue = '0';
+										iResult = send(acceptedSockets[i], (char*)&returnValue, sizeof(returnValue), 0);  // sizeof(Message_For_Client)
+										if (iResult == SOCKET_ERROR)
+										{
+											printf("send failed with error: %d\n", WSAGetLastError());
+											closesocket(acceptedSockets[i]);
+											acceptedSockets[connectedSockets] = INVALID_SOCKET;
+											for (int i = 0; i < connectedSockets; i++)
+											{
+												acceptedSockets[i] = acceptedSockets[i + 1];
+											}
+											connectedSockets--;
+											FD_CLR(acceptedSockets[i], &readfds);
+										}
 									}
-									connectedSockets--;
-									FD_CLR(acceptedSockets[i], &readfds);
+									else 
+									{
+										//printf("klijent zeli da prosledi poruku...\n");
+										//printf("%s\n", clientMessage->sender);
+										//printf("%s\n", clientMessage->receiver);
+										//printf("%s\n", clientMessage->message);
+										printf("Prosledjivanje poruke. Posiljalac: %s, Primalac: %s.\n", clientMessage->sender, clientMessage->receiver);
+										ClientData *recievingClient = FindValueInHashMap((unsigned char*)clientMessage->receiver);
+
+										iResult = send(acceptedSockets[i], (char*)&(clientMessage->message), sizeof(clientMessage->message), 0);  // sizeof(Message_For_Client)
+
+										// slanje poruke klijentu
+										sockaddr_in receivingClientAddress;
+										receivingClientAddress.sin_family = AF_INET;								// IPv4
+										receivingClientAddress.sin_addr.s_addr = inet_addr((const char*)recievingClient->address);   // serverska adresa
+										receivingClientAddress.sin_port = htons(recievingClient->port);					// port
+
+										SOCKET connectSocket = INVALID_SOCKET;
+
+										connectSocket = socket(AF_INET,
+											SOCK_STREAM,
+											IPPROTO_TCP);
+
+										if (connectSocket == INVALID_SOCKET)
+										{
+											printf("socket failed with error: %ld\n", WSAGetLastError());
+											WSACleanup();
+											return 1;
+										}
+
+										// connect to client
+										if (connect(connectSocket, (SOCKADDR*)&receivingClientAddress, sizeof(receivingClientAddress)) == SOCKET_ERROR)
+										{
+											printf("Unable to connect to server.\n");
+											closesocket(connectSocket);
+											WSACleanup();
+										}
+
+										iResult = send(connectSocket, (char*)&(clientMessage->message), sizeof(clientMessage->message), 0);  // sizeof(Message_For_Client)
+										if (iResult == SOCKET_ERROR)
+										{
+											printf("slanje poruke klijentu nije uspelo: %d\n", WSAGetLastError());
+											closesocket(connectSocket);
+
+											char returnValue = '0';
+											iResult = send(acceptedSockets[i], (char*)&returnValue, sizeof(returnValue), 0);  // sizeof(Message_For_Client)
+											if (iResult == SOCKET_ERROR)
+											{
+												printf("send failed with error: %d\n", WSAGetLastError());
+												closesocket(acceptedSockets[i]);
+												acceptedSockets[connectedSockets] = INVALID_SOCKET;
+												for (int i = 0; i < connectedSockets; i++)
+												{
+													acceptedSockets[i] = acceptedSockets[i + 1];
+												}
+												connectedSockets--;
+												FD_CLR(acceptedSockets[i], &readfds);
+											}
+										}
+										closesocket(connectSocket);
+
+										char returnValue = '1';
+										iResult = send(acceptedSockets[i], (char*)&returnValue, sizeof(returnValue), 0);  // sizeof(Message_For_Client)
+										if (iResult == SOCKET_ERROR)
+										{
+											printf("send failed with error: %d\n", WSAGetLastError());
+											closesocket(acceptedSockets[i]);
+											acceptedSockets[connectedSockets] = INVALID_SOCKET;
+											for (int i = 0; i < connectedSockets; i++)
+											{
+												acceptedSockets[i] = acceptedSockets[i + 1];
+											}
+											connectedSockets--;
+											FD_CLR(acceptedSockets[i], &readfds);
+										}
+									}
+								}
+								else
+								{
+									printf("ime je vec registrovano...\n");
+									char returnValue = '0';
+									iResult = send(acceptedSockets[i], (char*)&returnValue, sizeof(returnValue), 0);  // sizeof(Message_For_Client)
+									if (iResult == SOCKET_ERROR)
+									{
+										printf("send failed with error: %d\n", WSAGetLastError());
+										closesocket(acceptedSockets[i]);
+										acceptedSockets[connectedSockets] = INVALID_SOCKET;
+										for (int i = 0; i < connectedSockets; i++)
+										{
+											acceptedSockets[i] = acceptedSockets[i + 1];
+										}
+										connectedSockets--;
+										FD_CLR(acceptedSockets[i], &readfds);
+									}
 								}
 							}
 						}
