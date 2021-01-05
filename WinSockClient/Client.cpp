@@ -13,7 +13,7 @@
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 27016
 #define MAX_USERNAME 30
-#define MAX_MESSAGE 452
+#define MAX_MESSAGE 450
 
 #define SERVER_IP_ADDRESS "127.0.0.1"  // DODALA
 
@@ -33,6 +33,7 @@ int main()
 		unsigned char sender[MAX_USERNAME];
 		unsigned char receiver[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
+		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) + null terminator
 	};
 
 
@@ -69,23 +70,31 @@ int main()
 		WSACleanup();
 	}
 
+
+
+
 	unsigned char sender[MAX_USERNAME];
 	unsigned char receiver[MAX_USERNAME];
-	unsigned char communication_type[MAX_USERNAME];
-	//unsigned char message[MAX_MESSAGE];
 	char *message = (char*)malloc(MAX_MESSAGE);
-	bool directly = false;
+
 	Message_For_Client packet;
+	bool directly_communication = false;
+	strcpy((char*)packet.flag, "1\0");  // registracija
+
+	unsigned char communication_type[MAX_USERNAME];  // unos kakvu komunikaciju zeli (da/ne)
 
 	char recvbuf[DEFAULT_BUFLEN];
 
-	printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\n");
 
+	printf("Zdravo! Da biste ostvarili komunikaciju sa ostalim klijntima morate da se registrujete.\n");
 	while (true) {
 
 		printf("Unesite Vase korisnicko ime:\n");
 		scanf("%s", &sender);
-		iResult = send(connectSocket, (const char*)&sender, (int)strlen((const char*)&sender) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru 
+		strcpy((char*)packet.sender, (char*)sender);
+		strcpy((char*)packet.receiver, "*\0");
+		strcpy((char*)packet.message, "*\0");
+		iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
 		if (iResult == SOCKET_ERROR)
 		{
 			printf("send failed with error: %d\n", WSAGetLastError());
@@ -102,7 +111,7 @@ int main()
 			recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			if (strcmp(&recvbuf[0], "1") == 0) {
-				strcpy((char*)packet.sender, (char*)sender);
+				//strcpy((char*)packet.sender, (char*)sender);  // mislim da vise ne treba
 				printf("\nUspesno ste se registrovali!\n");
 				break;
 			}
@@ -168,6 +177,7 @@ int main()
 		
 	}
 
+	strcpy((char*)packet.flag, "2\0");  // prosledjivanje
 
 	// odavde bi trebalo da se ukljuci i druga nit koja ce primati poruke od klijenta (za oba tipa komunikacije)
 
@@ -182,12 +192,13 @@ int main()
 			}
 
 			if (strcmp((const char*)communication_type, "da") == 0) {
-				directly = true;
+				directly_communication = true;
+				strcpy((char*)packet.flag, "3\0");  // direktno
 			}
 
 		} while (strcmp((const char*)communication_type, "da") != 0 && strcmp((const char*)communication_type, "ne") != 0);
 
-		if (directly == false) {
+		if (directly_communication == false) {
 
 			printf("Unesite naziv klijenta kome zelite da posaljete poruku:\n");
 			scanf("%s", &receiver);
@@ -276,6 +287,7 @@ int main()
 
 
 		}
+		
 	}
 
 	
