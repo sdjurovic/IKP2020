@@ -397,7 +397,7 @@ int  main(void)
 											*/
 											
 											char clientMessageString[512];
-											sprintf(clientMessageString, "Klijent %s, vam je poslao: %s.", clientMessage->sender, clientMessage->message);
+											sprintf(clientMessageString, "[%s]: %s", clientMessage->sender, clientMessage->message);
 											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
 											if (iResult == SOCKET_ERROR)
 											{
