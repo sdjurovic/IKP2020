@@ -134,7 +134,10 @@ int  main(void)
 
 	do
 	{
-		FD_SET(listenSocket, &readfds);
+		if (connectedSockets < MAX_CLIENTS) {
+			FD_SET(listenSocket, &readfds);
+		}
+		
 		for (int i = 0; i < connectedSockets; i++)
 		{
 			FD_SET(acceptedSockets[i], &readfds);
@@ -383,6 +386,16 @@ int  main(void)
 											nasao = true;
 
 											// poslati i posiljaoca te poruke...
+											// FORMAT: [Jelena]:Cao Stefane!
+											/*
+											char *sender = (char*)malloc(DEFAULT_BUFLEN);
+											memset(sender, '[', 1);
+											memcpy(&sender[1], clientMessage->sender, strlen((char*)clientMessage->sender));
+											memset(&sender[strlen((char*)clientMessage->sender) + 1], ']', 1);
+											memset(&sender[strlen((char*)clientMessage->sender) + 2], ':', 1);
+											memcpy(&sender[strlen((char*)clientMessage->sender) + 3], clientMessage->message, strlen((char*)clientMessage->message));
+											*/
+											
 											iResult = send(acceptedSockets[k], (char*)&(clientMessage->message), sizeof(clientMessage->message), 0);
 											if (iResult == SOCKET_ERROR)
 											{
