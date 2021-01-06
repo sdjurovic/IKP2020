@@ -396,7 +396,9 @@ int  main(void)
 											memcpy(&sender[strlen((char*)clientMessage->sender) + 3], clientMessage->message, strlen((char*)clientMessage->message));
 											*/
 											
-											iResult = send(acceptedSockets[k], (char*)&(clientMessage->message), sizeof(clientMessage->message), 0);
+											char clientMessageString[512];
+											sprintf(clientMessageString, "Klijent %s, vam je poslao: %s.", clientMessage->sender, clientMessage->message);
+											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
 											if (iResult == SOCKET_ERROR)
 											{
 												printf("send failed with error: %d\n", WSAGetLastError());
