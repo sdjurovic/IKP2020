@@ -44,8 +44,6 @@ int  main(void)
 	// variable used to store function return value
 	int iResult;
 
-	bool receivingSendingClientDoesntExists = false;
-
 	// initiallization of the hashmap
 	InitializeHashMap();
 
@@ -233,7 +231,7 @@ int  main(void)
 
 							printf("REGISTRACIJA\n");
 
-							if (!ClientExistsInHashMap((unsigned char*)recvbuf))  // username ne postoji
+							if (!ClientExistsInHashMap(clientMessage->sender))  // username ne postoji
 							{
 								printf("Registracija novog klijenta!\n");
 
@@ -385,19 +383,8 @@ int  main(void)
 										{
 											nasao = true;
 
-											// poslati i posiljaoca te poruke...
-											// FORMAT: [Jelena]:Cao Stefane!
-											/*
-											char *sender = (char*)malloc(DEFAULT_BUFLEN);
-											memset(sender, '[', 1);
-											memcpy(&sender[1], clientMessage->sender, strlen((char*)clientMessage->sender));
-											memset(&sender[strlen((char*)clientMessage->sender) + 1], ']', 1);
-											memset(&sender[strlen((char*)clientMessage->sender) + 2], ':', 1);
-											memcpy(&sender[strlen((char*)clientMessage->sender) + 3], clientMessage->message, strlen((char*)clientMessage->message));
-											*/
-											
 											char clientMessageString[512];
-											sprintf(clientMessageString, "[%s]: %s", clientMessage->sender, clientMessage->message);
+											sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
 											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
 											if (iResult == SOCKET_ERROR)
 											{
@@ -431,6 +418,8 @@ int  main(void)
 									}
 
 									if (nasao == false) {
+
+										RemoveValueFromHashMap(clientMessage->receiver);
 										printf("[Neuspesno]: Prosledjivanje poruke. Posiljalac: %s, Primalac: %s.\n", clientMessage->sender, clientMessage->receiver);
 										sprintf(msg, "Poruka je neuspesno prosledjena zeljenom klijentu, jer on vise nije dostupan!");
 									}
