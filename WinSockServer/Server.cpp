@@ -44,6 +44,8 @@ int  main(void)
 	// variable used to store function return value
 	int iResult;
 
+	bool receivingSendingClientDoesntExists = false;
+
 	// initiallization of the hashmap
 	InitializeHashMap();
 
@@ -231,7 +233,7 @@ int  main(void)
 
 							printf("REGISTRACIJA\n");
 
-							if (!ClientExistsInHashMap(clientMessage->sender))  // username ne postoji
+							if (!ClientExistsInHashMap((unsigned char*)recvbuf))  // username ne postoji
 							{
 								printf("Registracija novog klijenta!\n");
 
@@ -383,8 +385,19 @@ int  main(void)
 										{
 											nasao = true;
 
+											// poslati i posiljaoca te poruke...
+											// FORMAT: [Jelena]:Cao Stefane!
+											/*
+											char *sender = (char*)malloc(DEFAULT_BUFLEN);
+											memset(sender, '[', 1);
+											memcpy(&sender[1], clientMessage->sender, strlen((char*)clientMessage->sender));
+											memset(&sender[strlen((char*)clientMessage->sender) + 1], ']', 1);
+											memset(&sender[strlen((char*)clientMessage->sender) + 2], ':', 1);
+											memcpy(&sender[strlen((char*)clientMessage->sender) + 3], clientMessage->message, strlen((char*)clientMessage->message));
+											*/
+											
 											char clientMessageString[512];
-											sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
+											sprintf(clientMessageString, "[%s]: %s", clientMessage->sender, clientMessage->message);
 											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
 											if (iResult == SOCKET_ERROR)
 											{
@@ -418,11 +431,8 @@ int  main(void)
 									}
 
 									if (nasao == false) {
-
-										RemoveValueFromHashMap(clientMessage->receiver);
 										printf("[Neuspesno]: Prosledjivanje poruke. Posiljalac: %s, Primalac: %s.\n", clientMessage->sender, clientMessage->receiver);
 										sprintf(msg, "Poruka je neuspesno prosledjena zeljenom klijentu, jer on vise nije dostupan!");
-
 									}
 
 									iResult = send(acceptedSockets[i], msg, sizeof(msg), 0);  // sizeof(Message_For_Client)
@@ -442,22 +452,13 @@ int  main(void)
 
 
 									}
-
-
 								}
-
-
 							}
-
-
 						}
 						else {  // DIREKTNA KOMUNIKACIJA:
 
 							printf("DIREKTNA KOMUNIKACIJA\n");
-
 						}
-
-
 					}
 					else if (iResult == 0 || WSAGetLastError() == WSAECONNRESET)  // klijent poslao shutdown signal ili je nasilno zatvoren
 					{
@@ -465,7 +466,27 @@ int  main(void)
 						printf("Connection with client closed.\n");
 
 						// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
-
+						for (int j = 0; j < MAXSIZE; j++)
+						{
+							if (HashMap[j] != NULL)
+							{
+								ClientData *tempClient = HashMap[j];
+								sockaddr_in socketAddress;
+								int socketAddress_len = sizeof(struct sockaddr_in);
+								if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+								{
+									printf("getsockname() failed.\n"); return -1;
+								}
+								char tempClientAddress[MAXLEN];
+								inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
+								if ((strcmp(tempClientAddress, (const char*)tempClient->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClient->port))
+								{
+									RemoveValueFromHashMap(tempClient->name);
+									printf("Klijent %s, je uklonjen iz HashMape", tempClient->name);
+									ShowHashMap();
+								}
+							}
+						}
 
 						closesocket(acceptedSockets[i]);
 						for (int j = i; j < connectedSockets - 1; j++)
@@ -488,8 +509,27 @@ int  main(void)
 							printf("recv failed with error: %d\n", WSAGetLastError());
 
 							// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
-
-
+							for (int j = 0; j < MAXSIZE; j++)
+							{
+								if (HashMap[j] != NULL)
+								{
+									ClientData *tempClient = HashMap[j];
+									sockaddr_in socketAddress;
+									int socketAddress_len = sizeof(struct sockaddr_in);
+									if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+									{
+										printf("getsockname() failed.\n"); return -1;
+									}
+									char tempClientAddress[MAXLEN];
+									inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
+									if ((strcmp(tempClientAddress, (const char*)tempClient->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClient->port))
+									{
+										RemoveValueFromHashMap(tempClient->name);
+										printf("Klijent %s, je uklonjen iz HashMape", tempClient->name);
+										ShowHashMap();
+									}
+								}
+							}
 							closesocket(acceptedSockets[i]);
 							for (int j = i; j < connectedSockets - 1; j++)
 							{
