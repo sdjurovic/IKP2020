@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "HashMap.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 unsigned long GenerateHashValue(unsigned char *str)
 {
@@ -20,53 +22,105 @@ void InitializeHashMap()
 	}
 }
 
-void ShowHashMap()
+bool AddValueToHashMap(ClientData* clientData)
 {
-	printf("\n---- START ----\n");
-	for (int i = 0; i < MAXSIZE; i++)
-	{
-		if (HashMap[i] != NULL)
-			printf("\t(%s,%s,%d)\n", HashMap[i]->name, HashMap[i]->address, HashMap[i]->port);
-		else
-			printf("\t~\n");
-	}
-	printf("---- END ----\n");
-}
+	struct Element *newElement = (struct Element*)malloc(sizeof(struct Element));
+	newElement->clientData = clientData;
+	newElement->nextElement = NULL;
 
-bool AddValueToHashMap(ClientData *clientData)
-{
 	unsigned int key = GenerateHashValue(clientData->name) % MAXSIZE;
-	if (clientData == NULL)
-		return false;
-	if (HashMap[key] != NULL)
-		return false;
-	HashMap[key] = clientData;
-	return true;
-}
 
-ClientData* FindValueInHashMap(unsigned char *clientName)
-{
-	unsigned long key = GenerateHashValue(clientName) % MAXSIZE;
-	return HashMap[key];
-}
-
-bool RemoveValueFromHashMap(unsigned char *clientName)
-{
-	unsigned long key = GenerateHashValue(clientName) % MAXSIZE;
-	if (HashMap[key] != NULL)
+	if (HashMap[key] == NULL)
 	{
-		HashMap[key] = NULL;
+		HashMap[key] = newElement;
+		return true;
+	}
+	else
+	{
+		struct Element *tempElement = HashMap[key];
+		while (tempElement->nextElement)
+		{
+			tempElement = tempElement->nextElement;
+		}
+		tempElement->nextElement = newElement;
 		return true;
 	}
 	return false;
 }
 
-bool ClientExistsInHashMap(unsigned char *name)
+void ShowHashMap()
 {
-	unsigned long key = GenerateHashValue(name) % MAXSIZE;
-	if (HashMap[key] != NULL)
+	printf("\n---- START ----\n");
+	for (int i = 0; i < MAXSIZE; i++)
 	{
-		return true;
+		struct Element *tempElement = HashMap[i];
+		printf("[%d] --->", i);
+		while (tempElement)
+		{
+			printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
+			tempElement = tempElement->nextElement;
+		}
+		printf(" NULL\n");
+	}
+	printf("---- END ----\n");
+}
+
+ClientData* FindValueInHashMap(unsigned char *clientName)
+{
+	for (int i = 0; i < MAXSIZE; i++)
+	{
+		struct Element *tempElement = HashMap[i];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				return tempElement->clientData;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
+}
+
+bool RemoveValueFromHashMap(unsigned char *clientName)
+{
+	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	struct Element *tempElement = HashMap[key];
+	if (tempElement != NULL)
+	{
+		if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+		{
+			HashMap[key] = NULL;
+			return true;
+		}
+		else
+		{
+			while (tempElement->nextElement)
+			{
+				if (strcmp((const char*)clientName, (const char*)tempElement->nextElement->clientData->name) == 0)
+				{
+					HashMap[key]->nextElement = tempElement->nextElement->nextElement;
+					return true;
+				}
+				tempElement = tempElement->nextElement;
+			}
+		}
+	}
+	return false;
+}
+
+bool ClientExistsInHashMap(unsigned char *clientName)
+{
+	for (int i = 0; i < MAXSIZE; i++)
+	{
+		struct Element *tempElement = HashMap[i];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				return true;
+			}
+			tempElement = tempElement->nextElement;
+		}
 	}
 	return false;
 }

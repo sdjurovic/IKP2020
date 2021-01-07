@@ -438,8 +438,6 @@ int  main(void)
 										i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
 
 										RemoveValueFromHashMap(clientMessage->sender);
-
-
 									}
 								}
 							}
@@ -454,12 +452,11 @@ int  main(void)
 						// connection was closed gracefully
 						printf("Connection with client closed.\n");
 
-						// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
 						for (int j = 0; j < MAXSIZE; j++)
 						{
-							if (HashMap[j] != NULL)
+							struct Element *tempClientElement = HashMap[j];
+							while (tempClientElement)
 							{
-								ClientData *tempClient = HashMap[j];
 								sockaddr_in socketAddress;
 								int socketAddress_len = sizeof(struct sockaddr_in);
 								if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
@@ -468,12 +465,15 @@ int  main(void)
 								}
 								char tempClientAddress[MAXLEN];
 								inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
-								if ((strcmp(tempClientAddress, (const char*)tempClient->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClient->port))
+
+								if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
 								{
-									RemoveValueFromHashMap(tempClient->name);
-									printf("Klijent %s, je uklonjen iz HashMape", tempClient->name);
+									RemoveValueFromHashMap(tempClientElement->clientData->name);
+									printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
 									ShowHashMap();
+									break;
 								}
+								tempClientElement = tempClientElement->nextElement;
 							}
 						}
 
@@ -500,9 +500,10 @@ int  main(void)
 							// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
 							for (int j = 0; j < MAXSIZE; j++)
 							{
-								if (HashMap[j] != NULL)
+
+								struct Element *tempClientElement = HashMap[j];
+								while (tempClientElement)
 								{
-									ClientData *tempClient = HashMap[j];
 									sockaddr_in socketAddress;
 									int socketAddress_len = sizeof(struct sockaddr_in);
 									if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
@@ -511,12 +512,15 @@ int  main(void)
 									}
 									char tempClientAddress[MAXLEN];
 									inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
-									if ((strcmp(tempClientAddress, (const char*)tempClient->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClient->port))
+
+									if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
 									{
-										RemoveValueFromHashMap(tempClient->name);
-										printf("Klijent %s, je uklonjen iz HashMape", tempClient->name);
+										printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
+										RemoveValueFromHashMap(tempClientElement->clientData->name);
 										ShowHashMap();
+										break;
 									}
+									tempClientElement = tempClientElement->nextElement;
 								}
 							}
 							closesocket(acceptedSockets[i]);
@@ -527,7 +531,6 @@ int  main(void)
 							acceptedSockets[connectedSockets - 1] = INVALID_SOCKET;
 							connectedSockets--;
 							i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
-
 						}
 					}
 				}

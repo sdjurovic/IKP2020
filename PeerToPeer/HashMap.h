@@ -9,9 +9,15 @@ typedef struct ClientData {
 	unsigned char name[MAXLEN];
 	unsigned char address[MAXLEN];
 	unsigned int port;
-}ClientData;
+} ClientData;
 
-static ClientData *HashMap[MAXSIZE];
+struct Element
+{
+	ClientData *clientData;
+	struct Element *nextElement;
+};
+
+static Element *HashMap[MAXSIZE];
 
 unsigned long GenerateHashValue(unsigned char *str);
 void InitializeHashMap();
