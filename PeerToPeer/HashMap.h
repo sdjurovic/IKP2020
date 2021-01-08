@@ -10,6 +10,9 @@ typedef struct ClientData {
 	unsigned char name[MAXLEN];
 	unsigned char address[MAXLEN];
 	unsigned int port;
+	unsigned char listen_address[MAXLEN];
+	unsigned int listen_port;
+	unsigned char flag[2];
 } ClientData;
 
 struct Element
@@ -27,5 +30,6 @@ bool AddValueToHashMap(ClientData *clientData);
 ClientData* FindValueInHashMap(unsigned char *clientName);
 bool RemoveValueFromHashMap(unsigned char *clientName);
 bool ClientExistsInHashMap(unsigned char *name);
+bool UpdateClientInHashMap(unsigned char *name);
 
 #endif
