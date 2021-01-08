@@ -1,5 +1,6 @@
-#ifndef HASHMAP_H
-#define HASHMAP_H
+#pragma once
+#ifndef HASHMAP_CLIENT_H
+#define HASHMAP_CLIENT_H
 
 #define MAXSIZE 10
 #define MAX_USERNAME 30

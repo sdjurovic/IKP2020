@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <cstdio>
 #include <iostream>
+#include "../PeerToPeer/HashMap_Client.cpp"
 
 //#include <queue>
 //using std::queue;
@@ -26,7 +27,7 @@ bool InitializeWindowsSockets();
 
 HANDLE StartSignal;
 HANDLE FinishSignal;
-CRITICAL_SECTION critical_section;
+CRITICAL_SECTION critical_section_server;
 
 SOCKET connectSocket = INVALID_SOCKET;
 
@@ -43,9 +44,9 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 		{
 			//recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
-			EnterCriticalSection(&critical_section);
+			EnterCriticalSection(&critical_section_server);
 			printf("%s\n", recvbuf);
-			LeaveCriticalSection(&critical_section);
+			LeaveCriticalSection(&critical_section_server);
 
 		}
 		else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
@@ -61,7 +62,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 				WSACleanup();
 				return 1;
 			}
-			
+
 
 			//printf("\nPress any key to exit: ");
 			//_getch();
@@ -98,7 +99,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 					WSACleanup();
 					return 1;
 				}
-				
+
 
 				//printf("\nPress any key to exit: ");
 				//_getch();
@@ -131,7 +132,7 @@ int main()
 
 	if (StartSignal && FinishSignal) {
 
-		InitializeCriticalSection(&critical_section);
+		InitializeCriticalSection(&critical_section_server);
 		thread = CreateThread(NULL, 0, &thread_function, NULL, 0, &thread_id);
 
 	}
@@ -140,7 +141,7 @@ int main()
 		CloseHandle(FinishSignal);
 		CloseHandle(StartSignal);
 		CloseHandle(thread);
-		DeleteCriticalSection(&critical_section);
+		DeleteCriticalSection(&critical_section_server);
 
 		return 1;
 
@@ -159,6 +160,14 @@ int main()
 		unsigned char message[MAX_MESSAGE];
 		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) + null terminator
 	};
+
+	struct Client_Information  // ovo ide u .h
+	{
+		unsigned char username[MAX_USERNAME];
+		unsigned char ip_address[10];
+		unsigned int port;
+	};
+
 
 
 	if (InitializeWindowsSockets() == false)
@@ -199,6 +208,7 @@ int main()
 	unsigned char receiver[MAX_USERNAME];
 	char *message = (char*)malloc(MAX_MESSAGE);
 
+	Client_Information my_information;
 	Message_For_Client packet;
 	bool directly_communication = false;
 	strcpy((char*)packet.flag, "1\0");  // registracija
@@ -318,16 +328,19 @@ int main()
 		printf("ioctlsocket failed with error: %ld\n", iResult);
 	}
 
-	// odavde bi trebalo da se ukljuci i druga nit koja ce primati poruke od klijenta (za oba tipa komunikacije)
+	// odavde bi trebalo da se ukljuci i druga nit koja ce primati sve poruke od servera za prvi tip komunikacije
 	ReleaseSemaphore(StartSignal, 1, NULL);
 
+	printf("Trenutan nacin komunikacije sa klijentima je preko servera.\n");
 	while (true) {
 
+		Sleep(110);
+
 		do {
-			EnterCriticalSection(&critical_section);
-			printf("Trenutan nacin komunikacije sa klijentima je preko servera.\nDa li zelite direktno da komunicirate sa klijentima? (da/ne)\n");
+			EnterCriticalSection(&critical_section_server);
+			printf("Da li zelite direktno da komunicirate sa klijentima? (da/ne)\n");
 			scanf("%s", &communication_type);
-			LeaveCriticalSection(&critical_section);
+			LeaveCriticalSection(&critical_section_server);
 
 			for (int i = 0; communication_type[i]; i++) {
 				communication_type[i] = tolower(communication_type[i]);
@@ -344,17 +357,17 @@ int main()
 
 		if (directly_communication == false) {
 
-			EnterCriticalSection(&critical_section);
+			EnterCriticalSection(&critical_section_server);
 			printf("Unesite naziv klijenta kome zelite da posaljete poruku:\n");
 			scanf("%s", &receiver);
-			LeaveCriticalSection(&critical_section);
+			LeaveCriticalSection(&critical_section_server);
 			getchar();
 			strcpy((char*)packet.receiver, (char*)receiver);
 			//printf("%s\n", packet.username);
-			EnterCriticalSection(&critical_section);
+			EnterCriticalSection(&critical_section_server);
 			printf("Unesite poruku:\n");
 			fgets(message, MAX_MESSAGE, stdin);
-			LeaveCriticalSection(&critical_section);
+			LeaveCriticalSection(&critical_section_server);
 			//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 			message[strlen(message) - 1] = message[strlen(message)];  // skidam novi red
 			strcpy((char*)packet.message, (char*)message);
@@ -373,7 +386,7 @@ int main()
 				CloseHandle(FinishSignal);
 				CloseHandle(StartSignal);
 				CloseHandle(thread);
-				DeleteCriticalSection(&critical_section);
+				DeleteCriticalSection(&critical_section_server);
 
 				free(message);
 
@@ -395,11 +408,158 @@ int main()
 				return 1;
 			}
 
-			Sleep(100);
+			//Sleep(110); prebacila sam ga gore
 
+		}
+		else {  // direktan komunikacija
+
+			break;
 		}
 
 	}
+
+	// gasimo nit koja je do sada primala poruke od servera i oslobadjamo resurse...
+	ReleaseSemaphore(FinishSignal, 1, NULL);
+	if (thread != NULL) {
+
+		WaitForSingleObject(thread, INFINITE);  // sacekati da se zavrsi nit
+	}
+	CloseHandle(FinishSignal);
+	CloseHandle(StartSignal);
+	CloseHandle(thread);
+	DeleteCriticalSection(&critical_section_server);
+
+	// vracamo connectSocket u blokirajuci rezim
+	mode = 0;
+	iResult = ioctlsocket(connectSocket, FIONBIO, &mode);
+	if (iResult != NO_ERROR) {
+		printf("ioctlsocket failed with error: %ld\n", iResult);
+	}
+
+	InitializeHashMap();
+
+	printf("Presli ste na direktan nacin komunikacije sa klijentima!");
+	while (true) {
+
+		printf("Unesite naziv klijenta sa kojim zelite da komunicirate:\n");
+		scanf("%s", &receiver);
+		//getchar();
+
+		if (!ClientExistsInHashMap(receiver)) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
+
+			strcpy((char*)packet.receiver, (char*)receiver);
+			strcpy((char*)packet.message, "*\0");
+			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("send failed with error: %d\n", WSAGetLastError());
+				iResult = shutdown(connectSocket, SD_BOTH);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					free(message);
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+				free(message);
+				closesocket(connectSocket);
+				WSACleanup();
+				return 1;
+			}
+
+			iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
+			if (iResult > 0)
+			{
+				//recvbuf[iResult] = '\0';
+				//printf("Message received from server: %s\n", recvbuf);
+
+				Client_Information *client_informations = (Client_Information*)recvbuf;
+				printf("Username: %s\n", client_informations->username);
+				printf("Ip address: %s\n", client_informations->ip_address);
+				printf("Port: %s\n", client_informations->port);
+
+
+			}
+			else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
+			{
+				//connection was closed gracefully
+				//printf("Connection with server closed.\n");
+				printf("Server vise nije dostupan!\n");
+				iResult = shutdown(connectSocket, SD_BOTH);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					free(message);
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+				printf("\nPress any key to exit: ");
+				_getch();
+
+				free(message);
+				closesocket(connectSocket);
+				WSACleanup();
+				return 0;
+
+			}
+			else  // ako je server nasilno zatvoren
+			{
+				// there was an error during recv
+				//printf("recv failed with error: %d\n", WSAGetLastError());
+				//closesocket(connectSocket);
+				printf("Server vise nije dostupan!\n");
+				iResult = shutdown(connectSocket, SD_BOTH);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					free(message);
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+				printf("\nPress any key to exit: ");
+				_getch();
+
+				free(message);
+				closesocket(connectSocket);
+				WSACleanup();
+				return 0;
+
+			}
+
+		}
+
+
+		
+
+
+
+
+
+
+
+
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	// obrisati ovo ispod ako ne bude trebalo...
 	/*--------------------------------------------------------------------------------------------------*/

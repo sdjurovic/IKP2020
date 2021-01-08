@@ -17,15 +17,17 @@ bool CheckIfSocketIsConnected(SOCKET socket);
 //void ReadFromSockets(SOCKET sockets[], int *socketsCount, fd_set* readfds);
 //void AcceptIncoming(SOCKET acceptedSockets[], int *freeIndex, SOCKET listenSocket, fd_set* readfds);
 
-struct Message_For_Client  // ovo ide u .h
-{
-	unsigned char sender[MAX_USERNAME];
-	unsigned char receiver[MAX_USERNAME];
-	unsigned char message[MAX_MESSAGE];
-	unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) + null terminator
-};
 int  main(void)
 {
+	struct Message_For_Client  // ovo ide u .h
+	{
+		unsigned char sender[MAX_USERNAME];
+		unsigned char receiver[MAX_USERNAME];
+		unsigned char message[MAX_MESSAGE];
+		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) + null terminator
+	};
+
+
 	// Socket used for listening for new clients 
 	SOCKET listenSocket = INVALID_SOCKET;
 	//array of sockets
@@ -445,6 +447,13 @@ int  main(void)
 						else {  // DIREKTNA KOMUNIKACIJA:
 
 							printf("DIREKTNA KOMUNIKACIJA\n");
+
+							
+
+
+
+
+
 						}
 					}
 					else if (iResult == 0 || WSAGetLastError() == WSAECONNRESET)  // klijent poslao shutdown signal ili je nasilno zatvoren
