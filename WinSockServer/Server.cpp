@@ -9,6 +9,7 @@
 #define DEFAULT_ADDRESS "127.0.0.1"
 #define MAX_USERNAME 30
 #define MAX_MESSAGE 450
+#define MAX_ADDRESS 256
 
 bool InitializeWindowsSockets();
 bool CheckIfSocketIsConnected(SOCKET socket);
@@ -24,7 +25,14 @@ int  main(void)
 		unsigned char sender[MAX_USERNAME];
 		unsigned char receiver[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
-		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) + null terminator
+		unsigned char flag[2];// vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu)+ null terminator
+	};
+
+	struct Client_Information_Directly  // ovo ide u .h
+	{
+		unsigned char message[MAX_MESSAGE];
+		unsigned char listen_address[MAX_ADDRESS];
+		unsigned int listen_port;
 	};
 
 
@@ -137,7 +145,7 @@ int  main(void)
 		if (connectedSockets < MAX_CLIENTS) {
 			FD_SET(listenSocket, &readfds);
 		}
-		
+
 		for (int i = 0; i < connectedSockets; i++)
 		{
 			FD_SET(acceptedSockets[i], &readfds);
@@ -385,6 +393,10 @@ int  main(void)
 										{
 											nasao = true;
 
+											// TO DO: ako je recievingClient->flag postavljen na 1 onda mu posalji strukturu, 
+											// gde ce message biti poruka, a port i ip adresa ce biti *
+											// u suprotnom saljes kao i do sada
+
 											char clientMessageString[512];
 											sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
 											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
@@ -416,7 +428,7 @@ int  main(void)
 
 											}
 										}
-									
+
 									}
 
 									if (nasao == false) {
@@ -443,16 +455,24 @@ int  main(void)
 									}
 								}
 							}
+
+
+
 						}
-						else {  // DIREKTNA KOMUNIKACIJA:
+						else if (strcmp((char*)clientMessage->flag, "3") == 0) {  // DIREKTNA KOMUNIKACIJA:
 
 							printf("DIREKTNA KOMUNIKACIJA\n");
 
-							
+							// TO DO: da li clientMessage->receiver postoji u Hash-u, ako postoji posalji mi strukturu Client_Information_Directly,
+							// gde ce message biti / + null terminator
+							// a ako ne postoji message ce biti poruka o tome da ne postoji ili da je sam sebi pokusao da posalje, a ip adresa i port ce biti / + null terminator
 
 
+						}
+						else {  // POSTAVI ME DA SAM PRESAO NA DIREKTNU KOMUNIKACIJU:
 
-
+							// TO DO: nadji clientMessage->sender u hash tabeli i izmeni mu flag direktne komunikacije na 1 (moras dodati fju koja ce raditi izmenu postojeceg)
+							// default-no taj flag je 0
 
 						}
 					}
@@ -547,7 +567,7 @@ int  main(void)
 
 
 		}
-		
+
 
 	} while (1);  // trajanje konekcije
 
