@@ -262,11 +262,13 @@ int  main(void)
 									printf("getsockname() failed.\n"); return -1;
 								}
 
-								char clientAddress[MAXLEN];
+								char clientAddress[MAX_ADDRESS];
 								inet_ntop(AF_INET, &socketAddress.sin_addr, clientAddress, INET_ADDRSTRLEN);
 
-								memcpy(newClient->name, recvbuf, sizeof(recvbuf));
-								memcpy(newClient->address, clientAddress, sizeof(clientAddress));
+								//memcpy(newClient->name, recvbuf, sizeof(recvbuf));
+								//memcpy(newClient->address, clientAddress, sizeof(clientAddress));
+								strcpy((char*)newClient->name, (char*)clientMessage->sender);
+								strcpy((char*)newClient->address, (char*)clientAddress);
 								strcpy((char*)newClient->listen_address, (char*)clientMessage->listen_address);
 								newClient->port = (int)ntohs(socketAddress.sin_port);
 								newClient->listen_port = clientMessage->listen_port;
