@@ -128,7 +128,17 @@ bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 {
 	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
 	if (HashMap[key] != NULL)
-		return true;
+	{
+		struct Element *tempElement = HashMap[key];
+		while (tempElement->nextElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				return true;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
 	return false;
 	
 	/*
