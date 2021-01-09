@@ -6,7 +6,6 @@
 #define MAX_USERNAME 30
 #define MAXLEN 256
 
-
 typedef struct ClientData {
 	unsigned char name[MAXLEN];
 	unsigned char address[MAXLEN];
@@ -20,14 +19,12 @@ struct Element
 	struct Element *nextElement;
 };
 
-static Element *HashMap[MAXSIZE];
-
-unsigned long GenerateHashValue(unsigned char *str);
-void InitializeHashMap();
-void ShowHashMap();
-bool AddValueToHashMap(ClientData *clientData);
-ClientData* FindValueInHashMap(unsigned char *clientName);
-bool RemoveValueFromHashMap(unsigned char *clientName);
-bool ClientExistsInHashMap(unsigned char *name);
+unsigned long GenerateHashMapKey(unsigned char *str);
+void InitializeHashMap(Element** HashMap);
+void ShowHashMap(Element** HashMap);
+bool AddValueToHashMap(Element** HashMap, ClientData *clientData);
+ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName);
+bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName);
+bool ClientExistsInHashMap(Element** HashMap, unsigned char *name);
 
 #endif

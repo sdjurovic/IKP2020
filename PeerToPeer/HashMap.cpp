@@ -25,6 +25,7 @@ void InitializeHashMap()
 bool AddValueToHashMap(ClientData* clientData)
 {
 	struct Element *newElement = (struct Element*)malloc(sizeof(struct Element));
+	strcpy_s((char*)clientData->flag, sizeof(clientData->flag), "0\0");
 	newElement->clientData = clientData;
 	newElement->nextElement = NULL;
 
@@ -57,7 +58,8 @@ void ShowHashMap()
 		printf("[%d] --->", i);
 		while (tempElement)
 		{
-			printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
+			printf(" %s, %s, %d, %s, %d, %s |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port, tempElement->clientData->listen_address, tempElement->clientData->listen_port, tempElement->clientData->flag);
+			//printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
 			tempElement = tempElement->nextElement;
 		}
 		printf(" NULL\n");
@@ -117,6 +119,24 @@ bool ClientExistsInHashMap(unsigned char *clientName)
 		{
 			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
 			{
+				return true;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
+	return false;
+}
+
+bool UpdateClientInHashMap(unsigned char* clientName)
+{
+	for (int i = 0; i < MAXSIZE; i++)
+	{
+		struct Element *tempElement = HashMap[i];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				strcpy_s((char*)tempElement->clientData->flag, sizeof(tempElement->clientData->flag), "1\0");
 				return true;
 			}
 			tempElement = tempElement->nextElement;

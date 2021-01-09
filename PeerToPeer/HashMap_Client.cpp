@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-unsigned long GenerateHashValue(unsigned char *str)
+unsigned long GenerateHashMapKey(unsigned char *str)
 {
 	unsigned long hash = 5381;
 	int c;
@@ -14,7 +14,7 @@ unsigned long GenerateHashValue(unsigned char *str)
 	return hash;
 }
 
-void InitializeHashMap()
+void InitializeHashMap(Element** HashMap)
 {
 	for (int i = 0; i < MAXSIZE; i++)
 	{
@@ -22,13 +22,13 @@ void InitializeHashMap()
 	}
 }
 
-bool AddValueToHashMap(ClientData* clientData)
+bool AddValueToHashMap(Element** HashMap, ClientData* clientData)
 {
 	struct Element *newElement = (struct Element*)malloc(sizeof(struct Element));
 	newElement->clientData = clientData;
 	newElement->nextElement = NULL;
 
-	unsigned int key = GenerateHashValue(clientData->name) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientData->name) % MAXSIZE;
 
 	if (HashMap[key] == NULL)
 	{
@@ -48,7 +48,7 @@ bool AddValueToHashMap(ClientData* clientData)
 	return false;
 }
 
-void ShowHashMap()
+void ShowHashMap(Element** HashMap)
 {
 	printf("\n---- START ----\n");
 	for (int i = 0; i < MAXSIZE; i++)
@@ -65,7 +65,7 @@ void ShowHashMap()
 	printf("---- END ----\n");
 }
 
-ClientData* FindValueInHashMap(unsigned char *clientName)
+ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 {
 	for (int i = 0; i < MAXSIZE; i++)
 	{
@@ -81,9 +81,9 @@ ClientData* FindValueInHashMap(unsigned char *clientName)
 	}
 }
 
-bool RemoveValueFromHashMap(unsigned char *clientName)
+bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
 	struct Element *tempElement = HashMap[key];
 	if (tempElement != NULL)
 	{
@@ -108,7 +108,7 @@ bool RemoveValueFromHashMap(unsigned char *clientName)
 	return false;
 }
 
-bool ClientExistsInHashMap(unsigned char *clientName)
+bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 {
 	for (int i = 0; i < MAXSIZE; i++)
 	{
