@@ -147,9 +147,13 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			//recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
-			printf("Username: %s\n", client_informations->message);
+			printf("Message: %s\n", client_informations->message);
 			printf("Ip address: %s\n", client_informations->listen_address);
 			printf("Port: %d\n", client_informations->listen_port);
+
+			// samo radi testiranja:
+			//ClientData *newClient = (ClientData*)malloc(sizeof(ClientData));
+
 
 		}
 		else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
@@ -276,7 +280,7 @@ int main()
 		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu) + null terminator
 	};
 
-	struct Element* HashMap[MAXSIZE];
+	struct Element* HashMap[MAX_CLIENTS];
 
 	if (InitializeWindowsSockets() == false)
 	{
@@ -646,7 +650,7 @@ int main()
 	ResumeThread(thread_directly_recv);  // aktiviram nit
 
 	strcpy((char*)packet.flag, "3\0");  // direktno
-	printf("Presli ste na direktan nacin komunikacije sa klijentima!");
+	printf("Presli ste na direktan nacin komunikacije sa klijentima!\n");
 	while (true) {
 
 		printf("Unesite naziv klijenta sa kojim zelite da komunicirate:\n");

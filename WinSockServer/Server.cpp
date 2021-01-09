@@ -395,11 +395,11 @@ int  main(void)
 										{
 											nasao = true;
 
-											// TO DO: ako je recievingClient->flag postavljen na 1 onda mu posalji strukturu, 
+											// TO DO: ako je recievingClient->directly postavljen na 1 onda mu posalji strukturu, 
 											// gde ce message biti poruka, a port i ip adresa ce biti *
 											// u suprotnom saljes kao i do sada
 
-											if (strcmp((const char*)recievingClient->flag, "1") == 0)
+											if (strcmp((const char*)recievingClient->directly, "1") == 0)
 											{
 												Client_Information_Directly directMessage;
 												strcpy((char*)directMessage.listen_address, "*\0");
@@ -413,6 +413,7 @@ int  main(void)
 												sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
 												iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
 											}
+
 											if (iResult == SOCKET_ERROR)
 											{
 												printf("send failed with error: %d\n", WSAGetLastError());
@@ -442,6 +443,7 @@ int  main(void)
 											}
 										}
 									}
+
 									if (nasao == false) {
 
 										RemoveValueFromHashMap(clientMessage->receiver);
@@ -482,7 +484,7 @@ int  main(void)
 								{
 									printf("[Direktna]: Klijent je pokusao da komunicira sa samim sobom\n");
 									char errorMsg[256];
-									sprintf(errorMsg, "Klijent je pokusao da komunicira sa samim sobom!");
+									sprintf(errorMsg, "Ne mozete da komunicirate sami sa sobom!");
 									strcpy((char*)returnMessage.message, errorMsg);
 									strcpy((char*)returnMessage.listen_address, "/\0");
 									returnMessage.listen_port = 0;
@@ -536,7 +538,7 @@ int  main(void)
 						// connection was closed gracefully
 						printf("Connection with client closed.\n");
 
-						for (int j = 0; j < MAXSIZE; j++)
+						for (int j = 0; j < MAX_CLIENTS; j++)
 						{
 							struct Element *tempClientElement = HashMap[j];
 							while (tempClientElement)
@@ -582,7 +584,7 @@ int  main(void)
 							printf("recv failed with error: %d\n", WSAGetLastError());
 
 							// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
-							for (int j = 0; j < MAXSIZE; j++)
+							for (int j = 0; j < MAX_CLIENTS; j++)
 							{
 
 								struct Element *tempClientElement = HashMap[j];

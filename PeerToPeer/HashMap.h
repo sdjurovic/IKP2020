@@ -1,8 +1,8 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-#define MAXSIZE 10
-#define MAX_USERNAME 30
+#define MAX_CLIENTS 10
+#define MAX_USERNAME 25
 #define MAX_ADDRESS 50
 #define MAXLEN 256
 
@@ -12,7 +12,7 @@ typedef struct ClientData {
 	unsigned int port;
 	unsigned char listen_address[MAX_ADDRESS];
 	unsigned int listen_port;
-	unsigned char flag[2];
+	unsigned char directly[2];
 } ClientData;
 
 struct Element
@@ -21,7 +21,7 @@ struct Element
 	struct Element *nextElement;
 };
 
-static Element *HashMap[MAXSIZE];
+static Element *HashMap[MAX_CLIENTS];
 
 unsigned long GenerateHashValue(unsigned char *str);
 void InitializeHashMap();

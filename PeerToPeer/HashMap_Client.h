@@ -2,16 +2,15 @@
 #ifndef HASHMAP_CLIENT_H
 #define HASHMAP_CLIENT_H
 
-#define MAXSIZE 10
-#define MAX_USERNAME 30
+#define MAX_CLIENTS 10
+#define MAX_USERNAME 25
 #define MAX_ADDRESS 50
-#define MAXLEN 256
 
 typedef struct ClientData {
 	unsigned char name[MAX_USERNAME];
 	unsigned char address[MAX_ADDRESS];
 	unsigned int port;
-	unsigned char flag[2];  // 0 ako je u connected, a 1 ako je u accepted socketima 
+	unsigned char socket_type[2];  // 0 ako je u connected, a 1 ako je u accepted socketima 
 } ClientData;
 
 struct Element

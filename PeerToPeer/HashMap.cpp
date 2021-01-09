@@ -16,7 +16,7 @@ unsigned long GenerateHashValue(unsigned char *str)
 
 void InitializeHashMap()
 {
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		HashMap[i] = NULL;
 	}
@@ -25,11 +25,11 @@ void InitializeHashMap()
 bool AddValueToHashMap(ClientData* clientData)
 {
 	struct Element *newElement = (struct Element*)malloc(sizeof(struct Element));
-	strcpy_s((char*)clientData->flag, sizeof(clientData->flag), "0\0");
+	strcpy_s((char*)clientData->directly, sizeof(clientData->directly), "0\0");
 	newElement->clientData = clientData;
 	newElement->nextElement = NULL;
 
-	unsigned int key = GenerateHashValue(clientData->name) % MAXSIZE;
+	unsigned int key = GenerateHashValue(clientData->name) % MAX_CLIENTS;
 
 	if (HashMap[key] == NULL)
 	{
@@ -52,13 +52,13 @@ bool AddValueToHashMap(ClientData* clientData)
 void ShowHashMap()
 {
 	printf("\n---- START ----\n");
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		printf("[%d] --->", i);
 		while (tempElement)
 		{
-			printf(" %s, %s, %d, %s, %d, %s |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port, tempElement->clientData->listen_address, tempElement->clientData->listen_port, tempElement->clientData->flag);
+			printf(" %s, %s, %d, %s, %d, %s |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port, tempElement->clientData->listen_address, tempElement->clientData->listen_port, tempElement->clientData->directly);
 			//printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
 			tempElement = tempElement->nextElement;
 		}
@@ -69,7 +69,7 @@ void ShowHashMap()
 
 ClientData* FindValueInHashMap(unsigned char *clientName)
 {
-	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashValue(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -83,7 +83,7 @@ ClientData* FindValueInHashMap(unsigned char *clientName)
 		}
 	}
 	/*
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		while (tempElement)
@@ -100,7 +100,7 @@ ClientData* FindValueInHashMap(unsigned char *clientName)
 
 bool RemoveValueFromHashMap(unsigned char *clientName)
 {
-	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashValue(clientName) % MAX_CLIENTS;
 	struct Element *tempElement = HashMap[key];
 	if (tempElement != NULL)
 	{
@@ -127,7 +127,7 @@ bool RemoveValueFromHashMap(unsigned char *clientName)
 
 bool ClientExistsInHashMap(unsigned char *clientName)
 {
-	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashValue(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -144,7 +144,7 @@ bool ClientExistsInHashMap(unsigned char *clientName)
 
 
 	/*
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		while (tempElement)
@@ -162,7 +162,7 @@ bool ClientExistsInHashMap(unsigned char *clientName)
 
 bool UpdateClientInHashMap(unsigned char* clientName)
 {
-	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashValue(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -170,7 +170,7 @@ bool UpdateClientInHashMap(unsigned char* clientName)
 		{
 			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
 			{
-				strcpy_s((char*)tempElement->clientData->flag, sizeof(tempElement->clientData->flag), "1\0");
+				strcpy_s((char*)tempElement->clientData->directly, sizeof(tempElement->clientData->directly), "1\0");
 				return true;
 			}
 			tempElement = tempElement->nextElement;
@@ -179,7 +179,7 @@ bool UpdateClientInHashMap(unsigned char* clientName)
 	return false;
 	
 	/*
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		while (tempElement)

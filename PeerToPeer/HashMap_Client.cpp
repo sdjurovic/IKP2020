@@ -16,7 +16,7 @@ unsigned long GenerateHashMapKey(unsigned char *str)
 
 void InitializeHashMap(Element** HashMap)
 {
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		HashMap[i] = NULL;
 	}
@@ -28,7 +28,7 @@ bool AddValueToHashMap(Element** HashMap, ClientData* clientData)
 	newElement->clientData = clientData;
 	newElement->nextElement = NULL;
 
-	unsigned int key = GenerateHashMapKey(clientData->name) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientData->name) % MAX_CLIENTS;
 
 	if (HashMap[key] == NULL)
 	{
@@ -51,13 +51,13 @@ bool AddValueToHashMap(Element** HashMap, ClientData* clientData)
 void ShowHashMap(Element** HashMap)
 {
 	printf("\n---- START ----\n");
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		printf("[%d] --->", i);
 		while (tempElement)
 		{
-			printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
+			printf(" %s, %s, %d %s|", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port, tempElement->clientData->socket_type);
 			tempElement = tempElement->nextElement;
 		}
 		printf(" NULL\n");
@@ -67,7 +67,7 @@ void ShowHashMap(Element** HashMap)
 
 ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -82,7 +82,7 @@ ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 	}
 
 	/*
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		while (tempElement)
@@ -99,7 +99,7 @@ ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 
 bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
 	struct Element *tempElement = HashMap[key];
 	if (tempElement != NULL)
 	{
@@ -126,7 +126,7 @@ bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 
 bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -142,7 +142,7 @@ bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 	return false;
 	
 	/*
-	for (int i = 0; i < MAXSIZE; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		while (tempElement)
