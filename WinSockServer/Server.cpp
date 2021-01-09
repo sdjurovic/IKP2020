@@ -492,7 +492,7 @@ int  main(void)
 									ClientData *receivingClient = FindValueInHashMap(clientMessage->receiver);
 									strcpy((char*)returnMessage.message, "/\0");
 									strcpy((char*)returnMessage.listen_address, (const char*)receivingClient->listen_address);
-									strcpy((char*)returnMessage.listen_port, (const char*)receivingClient->listen_port);
+									returnMessage.listen_port = receivingClient->listen_port;
 								}
 							}
 							else
