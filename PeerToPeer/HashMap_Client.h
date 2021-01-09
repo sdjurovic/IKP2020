@@ -4,11 +4,12 @@
 
 #define MAXSIZE 10
 #define MAX_USERNAME 30
+#define MAX_ADDRESS 50
 #define MAXLEN 256
 
 typedef struct ClientData {
-	unsigned char name[MAXLEN];
-	unsigned char address[MAXLEN];
+	unsigned char name[MAX_USERNAME];
+	unsigned char address[MAX_ADDRESS];
 	unsigned int port;
 	unsigned char flag[2];  // 0 ako je u connected, a 1 ako je u accepted socketima 
 } ClientData;

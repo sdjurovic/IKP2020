@@ -262,11 +262,13 @@ int  main(void)
 									printf("getsockname() failed.\n"); return -1;
 								}
 
-								char clientAddress[MAXLEN];
+								char clientAddress[MAX_ADDRESS];
 								inet_ntop(AF_INET, &socketAddress.sin_addr, clientAddress, INET_ADDRSTRLEN);
 
-								memcpy(newClient->name, recvbuf, sizeof(recvbuf));
-								memcpy(newClient->address, clientAddress, sizeof(clientAddress));
+								//memcpy(newClient->name, recvbuf, sizeof(recvbuf));
+								//memcpy(newClient->address, clientAddress, sizeof(clientAddress));
+								strcpy((char*)newClient->name, (char*)clientMessage->sender);
+								//strcpy((char*)newClient., (char*)clientMessage->sender);
 								strcpy((char*)newClient->listen_address, (char*)clientMessage->listen_address);
 								newClient->port = (int)ntohs(socketAddress.sin_port);
 								newClient->listen_port = clientMessage->listen_port;
@@ -276,7 +278,7 @@ int  main(void)
 								printf("Client IP address is: %s\n", newClient->address);
 								printf("Client Port is: %d\n", newClient->port);
 
-								AddValueToHashMap(newClient);
+								AddValueToHashMap(newClient);  // pukao
 								ShowHashMap();
 
 								char returnValue = '1';
@@ -483,14 +485,14 @@ int  main(void)
 									sprintf(errorMsg, "Klijent je pokusao da komunicira sa samim sobom!");
 									strcpy((char*)returnMessage.message, errorMsg);
 									strcpy((char*)returnMessage.listen_address, "/\0");
-									strcpy((char*)returnMessage.listen_port, "/\0");
+									returnMessage.listen_port = 0;
 								}
 								else
 								{
 									ClientData *receivingClient = FindValueInHashMap(clientMessage->receiver);
 									strcpy((char*)returnMessage.message, "/\0");
 									strcpy((char*)returnMessage.listen_address, (const char*)receivingClient->listen_address);
-									strcpy((char*)returnMessage.listen_port, (const char*)receivingClient->listen_port);
+									returnMessage.listen_port = receivingClient->listen_port;
 								}
 							}
 							else
@@ -500,10 +502,10 @@ int  main(void)
 								sprintf(errorMsg, "Trazeni klijent ne postoji!");
 								strcpy((char*)returnMessage.message, errorMsg);
 								strcpy((char*)returnMessage.listen_address, "/\0");
-								strcpy((char*)returnMessage.listen_port, "/\0");
+								returnMessage.listen_port = 0;
 							}
 
-							iResult = send(acceptedSockets[i], (char*)&returnMessage, sizeof(Client_Information_Directly), 0);  // sizeof(Message_For_Client)
+							iResult = send(acceptedSockets[i], (char*)&returnMessage, sizeof(returnMessage), 0);  // sizeof(Message_For_Client)
 							if (iResult == SOCKET_ERROR)
 							{
 								printf("send failed with error: %d\n", WSAGetLastError());

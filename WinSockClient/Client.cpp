@@ -149,7 +149,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
 			printf("Username: %s\n", client_informations->message);
 			printf("Ip address: %s\n", client_informations->listen_address);
-			printf("Port: %s\n", client_informations->listen_port);
+			printf("Port: %d\n", client_informations->listen_port);
 
 		}
 		else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
@@ -276,7 +276,7 @@ int main()
 		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu) + null terminator
 	};
 
-	
+	struct Element* HashMap[MAXSIZE];
 
 	if (InitializeWindowsSockets() == false)
 	{
@@ -593,7 +593,7 @@ int main()
 	free(message);
 	char *directly_message = (char*)malloc(MAX_MESSAGE);
 
-	InitializeHashMap();
+	InitializeHashMap(HashMap);
 
 	// serveru prebaci me na direktno
 	strcpy((char*)packet.flag, "4\0");  
@@ -653,7 +653,7 @@ int main()
 		scanf("%s", &receiver);
 		//getchar();
 
-		if (!ClientExistsInHashMap(receiver)) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
+		if (!ClientExistsInHashMap(HashMap, receiver)) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
 
 			strcpy((char*)packet.receiver, (char*)receiver);
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
