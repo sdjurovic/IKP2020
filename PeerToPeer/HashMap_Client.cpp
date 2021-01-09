@@ -67,6 +67,21 @@ void ShowHashMap(Element** HashMap)
 
 ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 {
+	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
+	if (HashMap[key] != NULL)
+	{
+		struct Element *tempElement = HashMap[key];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				return tempElement->clientData;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
+
+	/*
 	for (int i = 0; i < MAXSIZE; i++)
 	{
 		struct Element *tempElement = HashMap[i];
@@ -79,6 +94,7 @@ ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 			tempElement = tempElement->nextElement;
 		}
 	}
+	*/
 }
 
 bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
@@ -110,6 +126,12 @@ bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 
 bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 {
+	unsigned int key = GenerateHashMapKey(clientName) % MAXSIZE;
+	if (HashMap[key] != NULL)
+		return true;
+	return false;
+	
+	/*
 	for (int i = 0; i < MAXSIZE; i++)
 	{
 		struct Element *tempElement = HashMap[i];
@@ -123,4 +145,5 @@ bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 		}
 	}
 	return false;
+	*/
 }

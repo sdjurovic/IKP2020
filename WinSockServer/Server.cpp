@@ -403,7 +403,7 @@ int  main(void)
 											{
 												Client_Information_Directly directMessage;
 												strcpy((char*)directMessage.listen_address, "*\0");
-												strcpy((char*)directMessage.listen_port, "*\0");
+												directMessage.listen_port = 0;
 												sprintf((char*)directMessage.message, "[%s]:%s", clientMessage->sender, clientMessage->message);
 												iResult = send(acceptedSockets[k], (char*)&directMessage, sizeof(Client_Information_Directly), 0);
 											}
@@ -527,6 +527,7 @@ int  main(void)
 							if (ClientExistsInHashMap(clientMessage->sender) == true)
 							{
 								UpdateClientInHashMap(clientMessage->sender);
+								ShowHashMap();
 							}
 						}
 					}

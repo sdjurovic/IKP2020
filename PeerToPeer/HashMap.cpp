@@ -69,6 +69,20 @@ void ShowHashMap()
 
 ClientData* FindValueInHashMap(unsigned char *clientName)
 {
+	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	if (HashMap[key] != NULL)
+	{
+		struct Element *tempElement = HashMap[key];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				return tempElement->clientData;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
+	/*
 	for (int i = 0; i < MAXSIZE; i++)
 	{
 		struct Element *tempElement = HashMap[i];
@@ -81,6 +95,7 @@ ClientData* FindValueInHashMap(unsigned char *clientName)
 			tempElement = tempElement->nextElement;
 		}
 	}
+	*/
 }
 
 bool RemoveValueFromHashMap(unsigned char *clientName)
@@ -112,6 +127,12 @@ bool RemoveValueFromHashMap(unsigned char *clientName)
 
 bool ClientExistsInHashMap(unsigned char *clientName)
 {
+	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	if (HashMap[key] != NULL)
+		return true;
+	return false;
+
+	/*
 	for (int i = 0; i < MAXSIZE; i++)
 	{
 		struct Element *tempElement = HashMap[i];
@@ -125,10 +146,28 @@ bool ClientExistsInHashMap(unsigned char *clientName)
 		}
 	}
 	return false;
+	*/
 }
 
 bool UpdateClientInHashMap(unsigned char* clientName)
 {
+	unsigned int key = GenerateHashValue(clientName) % MAXSIZE;
+	if (HashMap[key] != NULL)
+	{
+		struct Element *tempElement = HashMap[key];
+		while (tempElement)
+		{
+			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
+			{
+				strcpy_s((char*)tempElement->clientData->flag, sizeof(tempElement->clientData->flag), "1\0");
+				return true;
+			}
+			tempElement = tempElement->nextElement;
+		}
+	}
+	return false;
+	
+	/*
 	for (int i = 0; i < MAXSIZE; i++)
 	{
 		struct Element *tempElement = HashMap[i];
@@ -143,4 +182,5 @@ bool UpdateClientInHashMap(unsigned char* clientName)
 		}
 	}
 	return false;
+	*/
 }
