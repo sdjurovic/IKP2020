@@ -3,14 +3,14 @@
 
 #define MAXSIZE 10
 #define MAX_USERNAME 30
+#define MAX_ADDRESS 50
 #define MAXLEN 256
 
-
 typedef struct ClientData {
-	unsigned char name[MAXLEN];
-	unsigned char address[MAXLEN];
+	unsigned char name[MAX_USERNAME];
+	unsigned char address[MAX_ADDRESS];
 	unsigned int port;
-	unsigned char listen_address[MAXLEN];
+	unsigned char listen_address[MAX_ADDRESS];
 	unsigned int listen_port;
 	unsigned char flag[2];
 } ClientData;

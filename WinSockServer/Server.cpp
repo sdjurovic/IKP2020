@@ -267,7 +267,10 @@ int  main(void)
 
 								memcpy(newClient->name, recvbuf, sizeof(recvbuf));
 								memcpy(newClient->address, clientAddress, sizeof(clientAddress));
+								strcpy((char*)newClient->listen_address, (char*)clientMessage->listen_address);
 								newClient->port = (int)ntohs(socketAddress.sin_port);
+								newClient->listen_port = clientMessage->listen_port;
+								
 
 								printf("Client Name: %s\n", newClient->name);
 								printf("Client IP address is: %s\n", newClient->address);
