@@ -16,9 +16,9 @@
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 27016
-#define MAX_USERNAME 30
-#define MAX_MESSAGE 450
-#define MAX_ADDRESS 256
+#define MAX_USERNAME 25
+#define MAX_MESSAGE 400
+#define MAX_ADDRESS 50
 
 #define SERVER_IP_ADDRESS "127.0.0.1"
 
@@ -36,6 +36,12 @@ HANDLE Start_Directly_Recv;
 HANDLE FinishSignal_Directly;
 CRITICAL_SECTION critical_section_directly;
 
+struct Client_Information_Directly  // ovo ide u .h
+{
+	unsigned char message[MAX_MESSAGE];
+	unsigned char listen_address[MAX_ADDRESS];
+	unsigned int listen_port;
+};
 
 DWORD WINAPI thread_function(LPVOID parametri) {
 
@@ -129,6 +135,89 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 DWORD WINAPI function_recv_directly(LPVOID parametri) {
 
 
+	int iResult;
+	char recvbuf[DEFAULT_BUFLEN];
+
+	while (true) {
+
+
+		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
+		if (iResult > 0)
+		{
+			//recvbuf[iResult] = '\0';
+			//printf("Message received from server: %s\n", recvbuf);
+			Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
+			printf("Username: %s\n", client_informations->message);
+			printf("Ip address: %s\n", client_informations->listen_address);
+			printf("Port: %s\n", client_informations->listen_port);
+
+		}
+		else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
+		{
+			//connection was closed gracefully
+			//printf("Connection with server closed.\n");
+			printf("\nIzgubljena je konekcija sa serverom...\n");
+			iResult = shutdown(connectSocket, SD_BOTH);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("Shutdown failed with error: %d\n", WSAGetLastError());
+				closesocket(connectSocket);
+				WSACleanup();
+				return 1;
+			}
+
+
+			//printf("\nPress any key to exit: ");
+			//_getch();
+
+			//free(message);
+
+			//closesocket(connectSocket);
+			//WSACleanup();
+
+
+			return 0;
+
+		}
+		else  // ako je server nasilno zatvoren
+		{
+			if (WSAGetLastError() == WSAEWOULDBLOCK) {
+
+				//printf("Operacija zahteva blokiranje.");   // nastavlja se dalje....
+				ReleaseSemaphore(StartSignal, 1, NULL);
+				//Sleep(1000);
+				continue;
+			}
+			else {
+
+				// there was an error during recv
+				//printf("recv failed with error: %d\n", WSAGetLastError());
+				//closesocket(connectSocket);
+				printf("\nIzgubljena je konekcija sa serverom...\n");
+				iResult = shutdown(connectSocket, SD_BOTH);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("Shutdown failed with error: %d\n", WSAGetLastError());
+					closesocket(connectSocket);
+					WSACleanup();
+					return 1;
+				}
+
+
+				//printf("\nPress any key to exit: ");
+				//_getch();
+
+				//free(message);
+
+				//closesocket(connectSocket);
+				//WSACleanup();
+
+				return 0;
+			}
+		}
+
+	}
+
 	return 0;
 }
 
@@ -184,15 +273,10 @@ int main()
 		unsigned char message[MAX_MESSAGE];
 		unsigned char listen_address[MAX_ADDRESS];
 		unsigned int listen_port;
-		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu)+ null terminator
+		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu) + null terminator
 	};
 
-	struct Client_Information_Directly  // ovo ide u .h
-	{
-		unsigned char message[MAX_MESSAGE];
-		unsigned char listen_address[MAX_ADDRESS];
-		unsigned int listen_port;
-	};
+	
 
 	if (InitializeWindowsSockets() == false)
 	{
@@ -200,6 +284,71 @@ int main()
 		// by InitializeWindowsSockets() function
 		return 1;
 	}
+
+	SOCKET listenSocket = INVALID_SOCKET;
+
+	// Prepare address information structures
+	addrinfo *resultingAddress = NULL;
+	addrinfo hints;
+
+	memset(&hints, 0, sizeof(hints));  // inicijalizuje memoriju za hints i popunjava je nulama
+	hints.ai_family = AF_INET;       // IPv4 address
+	hints.ai_socktype = SOCK_STREAM; // Provide reliable data streaming
+	hints.ai_protocol = IPPROTO_TCP; // Use TCP protocol
+	hints.ai_flags = AI_PASSIVE;     // 
+
+	// Resolve the server address and port
+	iResult = getaddrinfo(NULL, "0", &hints, &resultingAddress);
+	if (iResult != 0)
+	{
+		printf("getaddrinfo failed with error: %d\n", iResult);
+		WSACleanup();
+		return 1;
+	}
+
+	listenSocket = socket(AF_INET,      // IPv4 address famly
+		SOCK_STREAM,  // stream socket (TCP)
+		IPPROTO_TCP); // TCP
+
+	if (listenSocket == INVALID_SOCKET)
+	{
+		printf("socket failed with error: %ld\n", WSAGetLastError());
+		//freeaddrinfo(resultingAddress);
+		WSACleanup();
+		return 1;
+	}
+
+	// Setup the TCP listening socket - bind port number and local address to socket
+	iResult = bind(listenSocket, resultingAddress->ai_addr, (int)resultingAddress->ai_addrlen);
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("bind failed with error: %d\n", WSAGetLastError());
+		freeaddrinfo(resultingAddress);
+		closesocket(listenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	// Since we don't need resultingAddress any more, free it
+	freeaddrinfo(resultingAddress);
+
+	struct sockaddr_in socketAddress;
+	int socketAddress_len = sizeof(socketAddress);
+	// place in code where socket is bind to some address and port
+	// ...
+	// Ask getsockname to fill in this socket's local adress
+	if (getsockname(listenSocket, (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+	{
+		printf("getsockname() failed.\n");
+		return -1;
+	}
+	// Print the IP address and local port
+	printf("Local(listen) IP address is: %s\n", inet_ntoa(socketAddress.sin_addr));
+	printf("Local(listen) port is: %d\n", (int)ntohs(socketAddress.sin_port));
+
+	Message_For_Client packet;
+	strcpy((char*)packet.listen_address, inet_ntoa(socketAddress.sin_addr));
+	packet.listen_port = (int)ntohs(socketAddress.sin_port);
 
 	// create a socket
 	connectSocket = socket(AF_INET,
@@ -232,7 +381,6 @@ int main()
 	unsigned char receiver[MAX_USERNAME];
 	char *message = (char*)malloc(MAX_MESSAGE);
 
-	Message_For_Client packet;
 	bool directly_communication = false;
 	strcpy((char*)packet.flag, "1\0");  // registracija
 
@@ -495,9 +643,7 @@ int main()
 	CloseHandle(thread);
 	DeleteCriticalSection(&critical_section_server);
 
-	// aktivira se nova nit koja ce raditi recv svega od servera
-	// ...
-
+	ResumeThread(thread_directly_recv);  // aktiviram nit
 
 	strcpy((char*)packet.flag, "3\0");  // direktno
 	printf("Presli ste na direktan nacin komunikacije sa klijentima!");
@@ -530,68 +676,6 @@ int main()
 				return 1;
 			}
 
-			iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
-			if (iResult > 0)
-			{
-				//recvbuf[iResult] = '\0';
-				//printf("Message received from server: %s\n", recvbuf);
-
-				Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
-				printf("Username: %s\n", client_informations->message);
-				printf("Ip address: %s\n", client_informations->listen_address);
-				printf("Port: %s\n", client_informations->listen_port);
-
-
-			}
-			else if (iResult == 0)  // ako je primljena komanda za iskljucivanje (shutdown signal) ili je pozvan closeSocket na serverskoj strani
-			{
-				//connection was closed gracefully
-				//printf("Connection with server closed.\n");
-				printf("Server vise nije dostupan!\n");
-				iResult = shutdown(connectSocket, SD_BOTH);
-				if (iResult == SOCKET_ERROR)
-				{
-					printf("Shutdown failed with error: %d\n", WSAGetLastError());
-					free(message);
-					closesocket(connectSocket);
-					WSACleanup();
-					return 1;
-				}
-
-				printf("\nPress any key to exit: ");
-				_getch();
-
-				free(message);
-				closesocket(connectSocket);
-				WSACleanup();
-				return 0;
-
-			}
-			else  // ako je server nasilno zatvoren
-			{
-				// there was an error during recv
-				//printf("recv failed with error: %d\n", WSAGetLastError());
-				//closesocket(connectSocket);
-				printf("Server vise nije dostupan!\n");
-				iResult = shutdown(connectSocket, SD_BOTH);
-				if (iResult == SOCKET_ERROR)
-				{
-					printf("Shutdown failed with error: %d\n", WSAGetLastError());
-					free(message);
-					closesocket(connectSocket);
-					WSACleanup();
-					return 1;
-				}
-
-				printf("\nPress any key to exit: ");
-				_getch();
-
-				free(message);
-				closesocket(connectSocket);
-				WSACleanup();
-				return 0;
-
-			}
 
 		}
 
