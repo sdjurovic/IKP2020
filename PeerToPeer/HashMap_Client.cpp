@@ -130,7 +130,7 @@ bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
-		while (tempElement->nextElement)
+		while (tempElement)
 		{
 			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
 			{
