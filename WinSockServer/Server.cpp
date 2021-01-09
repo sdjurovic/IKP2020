@@ -485,7 +485,7 @@ int  main(void)
 									sprintf(errorMsg, "Klijent je pokusao da komunicira sa samim sobom!");
 									strcpy((char*)returnMessage.message, errorMsg);
 									strcpy((char*)returnMessage.listen_address, "/\0");
-									strcpy((char*)returnMessage.listen_port, "/\0");
+									returnMessage.listen_port = 0;
 								}
 								else
 								{
@@ -502,7 +502,7 @@ int  main(void)
 								sprintf(errorMsg, "Trazeni klijent ne postoji!");
 								strcpy((char*)returnMessage.message, errorMsg);
 								strcpy((char*)returnMessage.listen_address, "/\0");
-								strcpy((char*)returnMessage.listen_port, "/\0");
+								returnMessage.listen_port = 0;
 							}
 
 							iResult = send(acceptedSockets[i], (char*)&returnMessage, sizeof(Client_Information_Directly), 0);  // sizeof(Message_For_Client)
