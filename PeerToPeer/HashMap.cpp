@@ -160,7 +160,7 @@ bool ClientExistsInHashMap(unsigned char *clientName)
 	*/
 }
 
-bool UpdateClientInHashMap(unsigned char* clientName)
+bool ChangeClientsDirectlyValue(unsigned char* clientName, char newValue[2])
 {
 	unsigned int key = GenerateHashValue(clientName) % MAX_CLIENTS;
 	if (HashMap[key] != NULL)
@@ -170,7 +170,7 @@ bool UpdateClientInHashMap(unsigned char* clientName)
 		{
 			if (strcmp((const char*)clientName, (const char*)tempElement->clientData->name) == 0)
 			{
-				strcpy_s((char*)tempElement->clientData->directly, sizeof(tempElement->clientData->directly), "1\0");
+				strcpy_s((char*)tempElement->clientData->directly, sizeof(tempElement->clientData->directly), newValue);
 				return true;
 			}
 			tempElement = tempElement->nextElement;

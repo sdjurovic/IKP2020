@@ -30,6 +30,7 @@ bool AddValueToHashMap(ClientData *clientData);
 ClientData* FindValueInHashMap(unsigned char *clientName);
 bool RemoveValueFromHashMap(unsigned char *clientName);
 bool ClientExistsInHashMap(unsigned char *name);
-bool UpdateClientInHashMap(unsigned char *name);
+//bool UpdateClientInHashMap(unsigned char *name);
+bool ChangeClientsDirectlyValue(unsigned char *name, char newValue[2]);
 
 #endif

@@ -528,7 +528,7 @@ int  main(void)
 							// default-no taj flag je 0
 							if (ClientExistsInHashMap(clientMessage->sender) == true)
 							{
-								UpdateClientInHashMap(clientMessage->sender);
+								ChangeClientsDirectlyValue(clientMessage->sender, "1\0");
 								ShowHashMap();
 							}
 						}
