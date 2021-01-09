@@ -7,9 +7,9 @@
 #define DEFAULT_PORT "27016"
 #define MAX_CLIENTS 10
 #define DEFAULT_ADDRESS "127.0.0.1"
-#define MAX_USERNAME 30
-#define MAX_MESSAGE 450
-#define MAX_ADDRESS 256
+#define MAX_USERNAME 25
+#define MAX_MESSAGE 400
+#define MAX_ADDRESS 50
 
 bool InitializeWindowsSockets();
 bool CheckIfSocketIsConnected(SOCKET socket);
@@ -25,7 +25,9 @@ int  main(void)
 		unsigned char sender[MAX_USERNAME];
 		unsigned char receiver[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
-		unsigned char flag[2];// vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu)+ null terminator
+		unsigned char listen_address[MAX_ADDRESS];
+		unsigned int listen_port;
+		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu)+ null terminator
 	};
 
 	struct Client_Information_Directly  // ovo ide u .h
@@ -183,7 +185,6 @@ int  main(void)
 		{
 			if (FD_ISSET(listenSocket, &readfds) && connectedSockets < MAX_CLIENTS)
 			{
-
 				// Struct for information about connected client
 				sockaddr_in clientAddr;
 				int clientAddrSize = sizeof(struct sockaddr_in);
@@ -235,6 +236,10 @@ int  main(void)
 						printf("Sender: %s\n", clientMessage->sender);
 						printf("Receiver: %s\n", clientMessage->receiver);
 						printf("Message: %s\n", clientMessage->message);
+						printf("ListenIP: %s\n", clientMessage->listen_address);
+						printf("ListenPort: %d\n", clientMessage->listen_port);
+						printf("Message: %s\n", clientMessage->message);
+
 						printf("Flag: %s\n", clientMessage->flag);
 
 						if (strcmp((char*)clientMessage->flag, "1") == 0) {  // REGISTRACIJA:
@@ -307,12 +312,8 @@ int  main(void)
 									i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
 
 									RemoveValueFromHashMap(clientMessage->sender);
-
 								}
-
 							}
-
-
 						}
 						else if (strcmp((char*)clientMessage->flag, "2") == 0) {  // PROSLEDJIVANJE PORUKE:
 
@@ -335,11 +336,8 @@ int  main(void)
 									acceptedSockets[connectedSockets - 1] = INVALID_SOCKET;
 									connectedSockets--;
 									i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
-
 									RemoveValueFromHashMap(clientMessage->sender);
-
 								}
-
 							}
 							else  // ukoliko primalac postoji
 							{
@@ -367,7 +365,6 @@ int  main(void)
 								}
 								else  // ukoliko primalac nije i posiljaoc => sve je dobro, poruka se prosledjuje
 								{
-
 									ClientData *recievingClient = FindValueInHashMap((unsigned char*)clientMessage->receiver);  // klijent kome treba da se posalje
 
 									struct sockaddr_in socketAddress;
@@ -397,9 +394,20 @@ int  main(void)
 											// gde ce message biti poruka, a port i ip adresa ce biti *
 											// u suprotnom saljes kao i do sada
 
-											char clientMessageString[512];
-											sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
-											iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
+											if (strcmp((const char*)recievingClient->flag, "1") == 0)
+											{
+												Client_Information_Directly directMessage;
+												strcpy((char*)directMessage.listen_address, "*\0");
+												strcpy((char*)directMessage.listen_port, "*\0");
+												sprintf((char*)directMessage.message, "[%s]:%s", clientMessage->sender, clientMessage->message);
+												iResult = send(acceptedSockets[k], (char*)&directMessage, sizeof(Client_Information_Directly), 0);
+											}
+											else
+											{
+												char clientMessageString[512];
+												sprintf(clientMessageString, "[%s]:%s", clientMessage->sender, clientMessage->message);
+												iResult = send(acceptedSockets[k], (char*)&clientMessageString, sizeof(clientMessageString), 0);
+											}
 											if (iResult == SOCKET_ERROR)
 											{
 												printf("send failed with error: %d\n", WSAGetLastError());
@@ -428,9 +436,7 @@ int  main(void)
 
 											}
 										}
-
 									}
-
 									if (nasao == false) {
 
 										RemoveValueFromHashMap(clientMessage->receiver);
@@ -455,9 +461,6 @@ int  main(void)
 									}
 								}
 							}
-
-
-
 						}
 						else if (strcmp((char*)clientMessage->flag, "3") == 0) {  // DIREKTNA KOMUNIKACIJA:
 
@@ -466,14 +469,60 @@ int  main(void)
 							// TO DO: da li clientMessage->receiver postoji u Hash-u, ako postoji posalji mi strukturu Client_Information_Directly,
 							// gde ce message biti / + null terminator
 							// a ako ne postoji message ce biti poruka o tome da ne postoji ili da je sam sebi pokusao da posalje, a ip adresa i port ce biti / + null terminator
+							
+							Client_Information_Directly returnMessage;
+							if (ClientExistsInHashMap(clientMessage->receiver) == true)
+							{
+								if (strcmp((const char*)clientMessage->receiver, (const char*)clientMessage->sender) == 0)
+								{
+									printf("[Direktna]: Klijent je pokusao da komunicira sa samim sobom\n");
+									char errorMsg[256];
+									sprintf(errorMsg, "Klijent je pokusao da komunicira sa samim sobom!");
+									strcpy((char*)returnMessage.message, errorMsg);
+									strcpy((char*)returnMessage.listen_address, "/\0");
+									strcpy((char*)returnMessage.listen_port, "/\0");
+								}
+								else
+								{
+									ClientData *receivingClient = FindValueInHashMap(clientMessage->receiver);
+									strcpy((char*)returnMessage.message, "/\0");
+									strcpy((char*)returnMessage.listen_address, (const char*)receivingClient->listen_address);
+									strcpy((char*)returnMessage.listen_port, (const char*)receivingClient->listen_port);
+								}
+							}
+							else
+							{
+								printf("[Direktna]: Trazeni klijent ne postoji!\n");
+								char errorMsg[256];
+								sprintf(errorMsg, "Trazeni klijent ne postoji!");
+								strcpy((char*)returnMessage.message, errorMsg);
+								strcpy((char*)returnMessage.listen_address, "/\0");
+								strcpy((char*)returnMessage.listen_port, "/\0");
+							}
 
-
+							iResult = send(acceptedSockets[i], (char*)&returnMessage, sizeof(Client_Information_Directly), 0);  // sizeof(Message_For_Client)
+							if (iResult == SOCKET_ERROR)
+							{
+								printf("send failed with error: %d\n", WSAGetLastError());
+								closesocket(acceptedSockets[i]);
+								for (int j = i; j < connectedSockets - 1; j++)
+								{
+									acceptedSockets[j] = acceptedSockets[j + 1];
+								}
+								acceptedSockets[connectedSockets - 1] = INVALID_SOCKET;
+								connectedSockets--;
+								i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
+								RemoveValueFromHashMap(clientMessage->sender);
+							}
 						}
 						else {  // POSTAVI ME DA SAM PRESAO NA DIREKTNU KOMUNIKACIJU:
 
 							// TO DO: nadji clientMessage->sender u hash tabeli i izmeni mu flag direktne komunikacije na 1 (moras dodati fju koja ce raditi izmenu postojeceg)
 							// default-no taj flag je 0
-
+							if (ClientExistsInHashMap(clientMessage->sender) == true)
+							{
+								UpdateClientInHashMap(clientMessage->sender);
+							}
 						}
 					}
 					else if (iResult == 0 || WSAGetLastError() == WSAECONNRESET)  // klijent poslao shutdown signal ili je nasilno zatvoren
