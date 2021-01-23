@@ -240,8 +240,6 @@ int  main(void)
 						printf("Message: %s\n", clientMessage->message);
 						printf("ListenIP: %s\n", clientMessage->listen_address);
 						printf("ListenPort: %d\n", clientMessage->listen_port);
-						printf("Message: %s\n", clientMessage->message);
-
 						printf("Flag: %s\n", clientMessage->flag);
 
 						if (strcmp((char*)clientMessage->flag, "1") == 0) {  // REGISTRACIJA:
@@ -493,6 +491,7 @@ int  main(void)
 								}
 								else
 								{
+									printf("[Direktna]: Salju se informacije o trazenom klijentu!\n");
 									ClientData *receivingClient = FindValueInHashMap(clientMessage->receiver);
 									strcpy((char*)returnMessage.my_username, (char*)clientMessage->sender);
 									strcpy((char*)returnMessage.client_username, (char*)clientMessage->receiver);

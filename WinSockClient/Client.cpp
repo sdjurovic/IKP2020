@@ -154,15 +154,16 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			//recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
 			Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
+			/*
 			// samo za testiranje:
-			//EnterCriticalSection(&critical_section_directly);
-			//printf("My username: %s\n", client_informations->my_username);
-			//printf("Client username: %s\n", client_informations->client_username);
-			//printf("Message: %s\n", client_informations->message);
-			//printf("Ip address: %s\n", client_informations->listen_address);
-			//printf("Port: %d\n", client_informations->listen_port);
-			//LeaveCriticalSection(&critical_section_directly);
-
+			EnterCriticalSection(&critical_section_directly);
+			printf("My username: %s\n", client_informations->my_username);
+			printf("Client username: %s\n", client_informations->client_username);
+			printf("Message: %s\n", client_informations->message);
+			printf("Ip address: %s\n", client_informations->listen_address);
+			printf("Port: %d\n", client_informations->listen_port);
+			LeaveCriticalSection(&critical_section_directly);
+			*/
 
 			if (strcmp((char*)client_informations->listen_address, "*\0") == 0) {  // prosledjena poruka
 
@@ -176,18 +177,26 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 				EnterCriticalSection(&critical_section_directly);
 				printf("%s\n", client_informations->message);
 				LeaveCriticalSection(&critical_section_directly);
+
 				ReleaseSemaphore(StartMainSignal, 1, NULL);  // javljamo mainu da opet zavrti unos klijenta
 
 			}
 			else {  // klijent za kog smo trazili podatke postoji i dobili smo podatke o njemu, treba da se povezemo na njega:
 
 				if (count_connect_sockets >= MAX_DIRECTLY_CONNECTIONS) {
+
+					EnterCriticalSection(&critical_section_directly);
 					printf("Nema mesta za nove klijente!\n");
+					LeaveCriticalSection(&critical_section_directly);
+
 					continue;
 				}
 				else {
 
+					EnterCriticalSection(&critical_section_directly);
 					printf("Povezivanje sa zeljenim klijentom...");
+					LeaveCriticalSection(&critical_section_directly);
+
 					Client_Information_Directly *client_informations_1 = (Client_Information_Directly*)parametri;
 					strcpy((char*)client_informations_1->my_username, (char*)client_informations->my_username);
 					strcpy((char*)client_informations_1->client_username, (char*)client_informations->client_username);
@@ -290,7 +299,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 		printf("Client username: %s\n", information->client_username);
 		printf("Message: %s\n", information->message);
 		printf("Ip address: %s\n", information->listen_address);
-		printf("Port: %d\n", information->listen_port);
+		printf("Port: %d\n", information->listen_port);    // ispise host zapis
 		LeaveCriticalSection(&critical_section_directly);
 
 		// create a socket
@@ -308,11 +317,27 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 		sockaddr_in serverAddress;
 		serverAddress.sin_family = AF_INET;								// IPv4
 		serverAddress.sin_addr.s_addr = inet_addr((char*)information->listen_address);   // serverska adresa
-		serverAddress.sin_port = htons(information->listen_port);					// port
+		serverAddress.sin_port = htons(information->listen_port);					// port   
+
+		//printf("*************************\n");
+		//printf("%d\n", serverAddress.sin_port);  // ispise mrezni zapis
+		
 
 		// connect to server specified in serverAddress and socket connectSocket
 		if (connect(coonectSockets_directly[count_connect_sockets], (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 		{
+			/*
+			// za testiranje dok nema accept-a:
+			ClientData *newClient = (ClientData*)malloc(sizeof(ClientData));
+			strcpy((char*)newClient->name, (char*)information->client_username);
+			strcpy((char*)newClient->address, (char*)information->listen_address);
+			newClient->port = information->listen_port;  // host zapis
+			strcpy((char*)newClient->socket_type, "0\0");
+			AddValueToHashMap(HashMap, newClient);
+			ShowHashMap(HashMap);
+			count_connect_sockets++;
+			*/
+			
 			printf("Unable to connect to client.\n");
 			// poravnavanje socket-a nije potrebno jer j euvek u pitanju poslednji
 			closesocket(coonectSockets_directly[count_connect_sockets]);
@@ -358,7 +383,9 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				//return 1;
 			}
 
+			EnterCriticalSection(&critical_section_server);
 			printf("Poruka je uspesno poslata zeljenom klijentu!\n");
+			LeaveCriticalSection(&critical_section_server);
 
 		}
 
@@ -820,6 +847,8 @@ int main()
 	strcpy((char*)packet.flag, "3\0");  // direktno
 	printf("Presli ste na direktan nacin komunikacije sa klijentima!\n");
 
+	char *directly_message = (char*)malloc(DEFAULT_BUFLEN);
+
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartMainSignal };
 	while (WaitForMultipleObjects((DWORD)2, semaphores, FALSE, INFINITE) == WAIT_OBJECT_0 + 1) {
 
@@ -877,22 +906,99 @@ int main()
 		}
 		else {  // vec smo direktno povezani sa zeljenim klijentom, vadimo njegove podatke iz Hash mape:
 
-			ClientData *client = FindValueInHashMap(HashMap, receiver);
-			printf("Client Name: %s\n", client->name);
-			printf("Client IP address is: %s\n", client->address);
-			printf("Client Port is: %d\n", client->port);
-			printf("Client Socket Type: %s\n", client->socket_type);
+			printf("VEC SAM POVEZAN NA TOG KLIJENTA!!! \t Njegovi podaci:\n");
+
+			ClientData *client_from_HashMap = FindValueInHashMap(HashMap, receiver);
+			printf("Client Name: %s\n", client_from_HashMap->name);
+			printf("Client Listen IP address is: %s\n", client_from_HashMap->address);
+			printf("Client Listen Port is: %d\n", client_from_HashMap->port);
+			printf("Client Socket Type: %s\n", client_from_HashMap->socket_type);
 			
-			if (strcmp((char*)client->socket_type, "1\0") == 0) {
+			if (strcmp((char*)client_from_HashMap->socket_type, "1\0") == 0) {
 
 				// pretraziti acceptedSocket-e
 
+
+
+
+
+				
 			}
 			else {
 
 				// pretraziti connectSocket-e
+
+				bool nasao = false;
+
+				struct sockaddr_in socketAddress;  // struktura za smestanje adrese i porta iz socket-a iz connectSocket_directly niza
+				int socketAddress_len = sizeof(socketAddress);
+
+				for (int k = 0; k < count_connect_sockets; k++)
+				{
+					// Ask getsockname to fill in this socket's local adress
+					if (getpeername(coonectSockets_directly[k], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+					{
+						//printf("getsockname() failed.\n");
+						//return -1;
+						// doraditi...
+						//printf("Pokusajte ponovo!\n");
+						//break;
+					}
+
+					char client_address[MAX_ADDRESS];  // klijentska listen address-a, samo pretvorena u ascii
+					//strcpy(client_address, inet_ntoa(socketAddress.sin_addr));
+					inet_ntop(AF_INET, &socketAddress.sin_addr, client_address, INET_ADDRSTRLEN);
+					//printf("%d\n", (int)ntohs(socketAddress.sin_port));
+					//printf("%d\n", (int)htons(socketAddress.sin_port));
+					//printf("%d\n", ntohs(socketAddress.sin_port));
+
+
+					if ((strcmp(client_address, (char*)client_from_HashMap->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == client_from_HashMap->port))
+					{
+						nasao = true;
+
+						EnterCriticalSection(&critical_section_server);
+						printf("Unesite poruku:\n");
+						fgets(directly_message, MAX_MESSAGE, stdin);
+						LeaveCriticalSection(&critical_section_server);
+						//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
+						directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
+						char final_message[DEFAULT_BUFLEN];
+						sprintf((char*)final_message, "[%s]:%s", (char*)sender, directly_message);
+						iResult = send(coonectSockets_directly[k], directly_message, (int)strlen(directly_message) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru
+						if (iResult == SOCKET_ERROR)
+						{
+							//printf("send failed with error: %d\n", WSAGetLastError());
+							printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
+							closesocket(coonectSockets_directly[k]);
+							for (int j = k; j < count_connect_sockets - 1; j++)
+							{
+								coonectSockets_directly[j] = coonectSockets_directly[j + 1];
+							}
+							coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
+							count_connect_sockets--;
+
+							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
+							ShowHashMap(HashMap);
+							//WSACleanup();
+							//return 1;
+						}
+
+						printf("Poruka je uspesno poslata zeljenom klijentu!\n");
+						break;
+					}
+
+				}
+
+				if (nasao == false) {  // ako se desi greska na getsockname() ili ako ne postoji socket u nizu connectSocket_directly sa adresom i portom trazenog klijenta
+
+					printf("Pokusajte ponovo!\n");
+					printf("NESTO TI JE PROMAKLO JELENA...\n");
+				}
+
 			}
 
+			ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
 
 		}
 
@@ -900,19 +1006,7 @@ int main()
 		
 
 
-
-
-
-
-
-
 	}
-
-
-
-
-
-
 
 
 
