@@ -20,7 +20,7 @@ bool CheckIfSocketIsConnected(SOCKET socket);
 
 int  main(void)
 {
-	struct Message_For_Client  // ovo ide u .h
+	struct Message_For_Client  // dobijam od klijenta
 	{
 		unsigned char sender[MAX_USERNAME];
 		unsigned char receiver[MAX_USERNAME];
@@ -30,8 +30,10 @@ int  main(void)
 		unsigned char flag[2];  // vrednosti: "1"(registracija) / "2"(prosledjivanje) / "3"(direktno) / "4"(presao sam na direktnu)+ null terminator
 	};
 
-	struct Client_Information_Directly  // ovo ide u .h
+	struct Client_Information_Directly  // saljem klijentu informacije o onom klijentu sa kojim on zeli da se poveze
 	{
+		unsigned char my_username[MAX_USERNAME];
+		unsigned char client_username[MAX_USERNAME];
 		unsigned char message[MAX_MESSAGE];
 		unsigned char listen_address[MAX_ADDRESS];
 		unsigned int listen_port;
@@ -93,7 +95,7 @@ int  main(void)
 	if (listenSocket == INVALID_SOCKET)
 	{
 		printf("socket failed with error: %ld\n", WSAGetLastError());
-		//freeaddrinfo(resultingAddress);
+		freeaddrinfo(resultingAddress);
 		WSACleanup();
 		return 1;
 	}
@@ -265,8 +267,6 @@ int  main(void)
 								char clientAddress[MAX_ADDRESS];
 								inet_ntop(AF_INET, &socketAddress.sin_addr, clientAddress, INET_ADDRSTRLEN);
 
-								//memcpy(newClient->name, recvbuf, sizeof(recvbuf));
-								//memcpy(newClient->address, clientAddress, sizeof(clientAddress));
 								strcpy((char*)newClient->name, (char*)clientMessage->sender);
 								strcpy((char*)newClient->address, (char*)clientAddress);
 								strcpy((char*)newClient->listen_address, (char*)clientMessage->listen_address);
@@ -488,10 +488,14 @@ int  main(void)
 									strcpy((char*)returnMessage.message, errorMsg);
 									strcpy((char*)returnMessage.listen_address, "/\0");
 									returnMessage.listen_port = 0;
+									strcpy((char*)returnMessage.my_username, (char*)clientMessage->sender);
+									strcpy((char*)returnMessage.client_username, (char*)clientMessage->receiver);
 								}
 								else
 								{
 									ClientData *receivingClient = FindValueInHashMap(clientMessage->receiver);
+									strcpy((char*)returnMessage.my_username, (char*)clientMessage->sender);
+									strcpy((char*)returnMessage.client_username, (char*)clientMessage->receiver);
 									strcpy((char*)returnMessage.message, "/\0");
 									strcpy((char*)returnMessage.listen_address, (const char*)receivingClient->listen_address);
 									returnMessage.listen_port = receivingClient->listen_port;
@@ -505,6 +509,8 @@ int  main(void)
 								strcpy((char*)returnMessage.message, errorMsg);
 								strcpy((char*)returnMessage.listen_address, "/\0");
 								returnMessage.listen_port = 0;
+								strcpy((char*)returnMessage.my_username, (char*)clientMessage->sender);
+								strcpy((char*)returnMessage.client_username, (char*)clientMessage->receiver);
 							}
 
 							iResult = send(acceptedSockets[i], (char*)&returnMessage, sizeof(Client_Information_Directly), 0);  // sizeof(Message_For_Client)
