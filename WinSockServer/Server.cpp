@@ -400,6 +400,8 @@ int  main(void)
 											if (strcmp((const char*)recievingClient->directly, "1") == 0)
 											{
 												Client_Information_Directly directMessage;
+												strcpy((char*)directMessage.my_username, (char*)clientMessage->sender);
+												strcpy((char*)directMessage.client_username, (char*)clientMessage->receiver);
 												strcpy((char*)directMessage.listen_address, "*\0");
 												directMessage.listen_port = 0;
 												sprintf((char*)directMessage.message, "[%s]:%s", clientMessage->sender, clientMessage->message);
