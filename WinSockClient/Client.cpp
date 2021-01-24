@@ -16,6 +16,7 @@
 #define MAX_USERNAME 25
 #define MAX_MESSAGE 400
 #define MAX_ADDRESS 50
+#define MAX_DIRECTLY_MESSAGE 510
 
 #define MAX_DIRECTLY_CONNECTIONS 10
 
@@ -48,6 +49,11 @@ struct Client_Information_Directly  // dobijam od servera informacije o klijentu
 	unsigned char message[MAX_MESSAGE];
 	unsigned char listen_address[MAX_ADDRESS];
 	unsigned int listen_port;
+};
+
+struct Directly_Message {
+	unsigned char message[MAX_DIRECTLY_MESSAGE];
+	unsigned char flag[2];  // "0" username klijenta koji se konektovao - ja, "1" poruka od klijenta koji se konektovao - od mene
 };
 
 struct Element* HashMap[MAX_CLIENTS];
@@ -143,6 +149,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 
 	int iResult;
 	char recvbuf[DEFAULT_BUFLEN];
+	Client_Information_Directly *client_informations;
 	//int count_connect_sockets = 0;
 
 	while (true) {
@@ -153,7 +160,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 		{
 			//recvbuf[iResult] = '\0';
 			//printf("Message received from server: %s\n", recvbuf);
-			Client_Information_Directly *client_informations = (Client_Information_Directly*)recvbuf;
+			client_informations = (Client_Information_Directly*)recvbuf;
 			/*
 			// samo za testiranje:
 			EnterCriticalSection(&critical_section_directly);
@@ -189,7 +196,6 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 					printf("Nema mesta za nove klijente!\n");
 					LeaveCriticalSection(&critical_section_directly);
 
-					continue;
 				}
 				else {
 
@@ -287,7 +293,8 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 
 	Client_Information_Directly *information = (Client_Information_Directly*)parametri;  // da li ce uvek biti osvezeno???? //HOCE
-	char *directly_message = (char*)malloc(DEFAULT_BUFLEN);
+	char *directly_message = (char*)malloc(MAX_DIRECTLY_MESSAGE);
+	Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
 	int iResult;
 
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartSendMessageSignal };
@@ -352,6 +359,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 
 			count_connect_sockets++;
 			printf("POVEZAO SAM SE NA KLIJENTA!!! \t Njegova adresa i port: %s : %d \n", inet_ntoa(serverAddress.sin_addr), ntohs(serverAddress.sin_port));
+			// dodavanje klijnta sa kojim smo se povezali u Hash Map:
 			ClientData *newClient = (ClientData*)malloc(sizeof(ClientData));
 			strcpy((char*)newClient->name, (char*)information->client_username);
 			strcpy((char*)newClient->address, (char*)information->listen_address);
@@ -360,15 +368,35 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			AddValueToHashMap(HashMap, newClient);
 			ShowHashMap(HashMap);
 
+			// slanje mog imena klijentu da bi me upisao u Hash Mapu:
+			strcpy((char*)directly_message_packet->flag, "0\0");
+			strcpy((char*)directly_message_packet->message, (char*)information->my_username);
+			iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+			if (iResult == SOCKET_ERROR)
+			{
+				//printf("send failed with error: %d\n", WSAGetLastError());
+				printf("Klijent vise nije dostupan!\n");
+				// poravnavanje socket-a nije potrebno jer j euvek u pitanju poslednji
+				closesocket(coonectSockets_directly[count_connect_sockets - 1]);
+				coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
+				count_connect_sockets--;
+				//WSACleanup();
+				ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
+				continue;
+				//return 1;
+			}
+
+
 			EnterCriticalSection(&critical_section_server);
 			printf("Unesite poruku:\n");
-			fgets(directly_message, MAX_MESSAGE, stdin);
+			fgets(directly_message, MAX_DIRECTLY_MESSAGE, stdin);
 			LeaveCriticalSection(&critical_section_server);
 			//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 			directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
-			char final_message[DEFAULT_BUFLEN];
-			sprintf((char*)final_message, "[%s]:%s", information->my_username, directly_message);
-			iResult = send(coonectSockets_directly[count_connect_sockets - 1], directly_message, (int)strlen(directly_message) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru
+			strcpy((char*)directly_message_packet->flag, "1\0");
+			sprintf((char*)directly_message_packet->message, "[%s]:%s", information->my_username, directly_message);
+			printf("Poruka direktna za klijenta: %s\n", directly_message_packet->message);
+			iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 			if (iResult == SOCKET_ERROR)
 			{
 				//printf("send failed with error: %d\n", WSAGetLastError());
@@ -393,6 +421,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 	}
 
 	free(directly_message);
+	free(directly_message_packet);
 
 	return 0;
 
@@ -847,7 +876,8 @@ int main()
 	strcpy((char*)packet.flag, "3\0");  // direktno
 	printf("Presli ste na direktan nacin komunikacije sa klijentima!\n");
 
-	char *directly_message = (char*)malloc(DEFAULT_BUFLEN);
+	char *directly_message = (char*)malloc(MAX_DIRECTLY_MESSAGE);
+	Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
 
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartMainSignal };
 	while (WaitForMultipleObjects((DWORD)2, semaphores, FALSE, INFINITE) == WAIT_OBJECT_0 + 1) {
@@ -963,9 +993,10 @@ int main()
 						LeaveCriticalSection(&critical_section_server);
 						//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 						directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
-						char final_message[DEFAULT_BUFLEN];
-						sprintf((char*)final_message, "[%s]:%s", (char*)sender, directly_message);
-						iResult = send(coonectSockets_directly[k], directly_message, (int)strlen(directly_message) + 1, 0);  // +1 zbog null karaktera kojeg cemo dodati na serveru
+						strcpy((char*)directly_message_packet->flag, "1\0");
+						sprintf((char*)directly_message_packet->message, "[%s]:%s", (char*)sender, directly_message);
+						printf("Poruka direktna za klijenta: %s\n", directly_message_packet->message);
+						iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 						if (iResult == SOCKET_ERROR)
 						{
 							//printf("send failed with error: %d\n", WSAGetLastError());
