@@ -14,9 +14,10 @@
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 27016
 #define MAX_USERNAME 25
-#define MAX_MESSAGE 400
+#define MAX_MESSAGE 300
 #define MAX_ADDRESS 50
 #define MAX_DIRECTLY_MESSAGE 510
+#define MAX_MESSAGE_DIRECTLY 484
 
 #define MAX_DIRECTLY_CONNECTIONS 10
 
@@ -36,6 +37,10 @@ CRITICAL_SECTION critical_section_server;
 SOCKET connectSocket;  // socket used to communicate with server
 SOCKET coonectSockets_directly[MAX_DIRECTLY_CONNECTIONS];  // sockets used to communicate with other clients
 int count_connect_sockets;
+SOCKET listenSocket;  // Socket used for listening for other clients 
+SOCKET acceptedSockets[MAX_CLIENTS];  // Socket used for communication with other client
+int counter_accepted_clients;
+
 
 HANDLE StartMainSignal;
 HANDLE StartSendMessageSignal;
@@ -221,6 +226,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 					strcpy((char*)client_informations_1->listen_address, (char*)client_informations->listen_address);
 					client_informations_1->listen_port = client_informations->listen_port;
 
+					//printf("jnds");
 				}
 
 				ReleaseSemaphore(StartSendMessageSignal, 1, NULL);
@@ -311,8 +317,9 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 
 	Client_Information_Directly *information = (Client_Information_Directly*)parametri;  // da li ce uvek biti osvezeno???? //HOCE
-	char *directly_message = (char*)malloc(MAX_DIRECTLY_MESSAGE);
-	Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
+	char *directly_message = (char*)malloc(MAX_MESSAGE_DIRECTLY);
+	//Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
+	Directly_Message directly_message_packet;
 	int iResult;
 
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartSendMessageSignal };
@@ -387,8 +394,8 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			ShowHashMap(HashMap);
 
 			// slanje mog imena klijentu da bi me upisao u Hash Mapu:
-			strcpy((char*)directly_message_packet->flag, "0\0");
-			strcpy((char*)directly_message_packet->message, (char*)information->my_username);
+			strcpy((char*)directly_message_packet.flag, "0\0");
+			strcpy((char*)directly_message_packet.message, (char*)information->my_username);
 			iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 			if (iResult == SOCKET_ERROR)
 			{
@@ -404,16 +411,16 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				//return 1;
 			}
 
-
-			EnterCriticalSection(&critical_section_server);
+			getchar();
+			EnterCriticalSection(&critical_section_directly);
 			printf("Unesite poruku:\n");
-			fgets(directly_message, MAX_DIRECTLY_MESSAGE, stdin);
-			LeaveCriticalSection(&critical_section_server);
+			fgets(directly_message, MAX_MESSAGE_DIRECTLY, stdin);
+			LeaveCriticalSection(&critical_section_directly);
 			//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 			directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
-			strcpy((char*)directly_message_packet->flag, "1\0");
-			sprintf((char*)directly_message_packet->message, "[%s]:%s", information->my_username, directly_message);
-			printf("Poruka direktna za klijenta: %s\n", directly_message_packet->message);
+			strcpy((char*)directly_message_packet.flag, "1\0");
+			sprintf((char*)directly_message_packet.message, "[%s]:%s", information->my_username, directly_message);
+			printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
 			iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 			if (iResult == SOCKET_ERROR)
 			{
@@ -429,9 +436,9 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				//return 1;
 			}
 
-			EnterCriticalSection(&critical_section_server);
+			EnterCriticalSection(&critical_section_directly);
 			printf("Poruka je uspesno poslata zeljenom klijentu!\n");
-			LeaveCriticalSection(&critical_section_server);
+			LeaveCriticalSection(&critical_section_directly);
 
 		}
 
@@ -439,20 +446,198 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 	}
 
 	free(directly_message);
-	free(directly_message_packet);
+	//free(directly_message_packet);
 
 	return 0;
 
 }
 
 
+DWORD WINAPI function_accept_clients(LPVOID parametri) {
+
+	// ova nit treba da radi dok server ne padne
+	// radi i tokom prvog i tokom drugog tipa komunikacije
+
+	//Directly_Message *directly_message;
+	char recvbuf[DEFAULT_BUFLEN];
+	int iResult = 0;
+
+	// Set listenSocket in listening mode
+	iResult = listen(listenSocket, SOMAXCONN);
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("listen failed with error: %d\n", WSAGetLastError());
+		closesocket(listenSocket);
+		//WSACleanup();
+		//return 1;
+	}
+	printf("Server socket is set to listening mode. Waiting for new connection requests.\n");
+
+	unsigned long mode = 1;
+	iResult = ioctlsocket(listenSocket, FIONBIO, &mode);
+	if (iResult != NO_ERROR) {
+		printf("ioctlsocket failed with error: %ld\n", iResult);
+	}
+
+	fd_set readfds;
+	FD_ZERO(&readfds);
+
+	timeval timeVal;
+	timeVal.tv_sec = 1;
+	timeVal.tv_usec = 0;
+
+	do {
+
+		if (counter_accepted_clients < MAX_CLIENTS) {  // ako je sledece mesto za upis klijenta 0 1 ili 2 => ako nemamo jos uvek 3 klijenta
+			FD_SET(listenSocket, &readfds);
+		}
+
+		for (int a = 0; a < counter_accepted_clients; a++) {
+			FD_SET(acceptedSockets[a], &readfds);
+		}
+
+		iResult = select(0, &readfds, NULL, NULL, &timeVal);
+		if (iResult == 0) {
+
+			continue;					 
+		}
+		else if (iResult == SOCKET_ERROR) {
+
+			printf("select failed with error: %ld\n", WSAGetLastError());
+			break;                         // ugasiti server
+
+		}
+		else {  // desio se neki dogadjaj
+
+			if (FD_ISSET(listenSocket, &readfds) && counter_accepted_clients < MAX_CLIENTS) {
+
+				// Struct for information about connected client
+				sockaddr_in clientAddr;
+				int clientAddrSize = sizeof(struct sockaddr_in);
+
+				FD_CLR(listenSocket, &readfds);
+
+				// New connection request is received. Add new socket in array on first free position.
+				acceptedSockets[counter_accepted_clients] = accept(listenSocket, (struct sockaddr *)&clientAddr, &clientAddrSize);
+				if (acceptedSockets[counter_accepted_clients] == INVALID_SOCKET)
+				{
+					printf("accept failed with error: %d\n", WSAGetLastError());
+					closesocket(listenSocket);
+					//WSACleanup();
+					//return 1;
+					break;
+
+				}
+				printf("\nNew client[%d] request accepted. Client address: %s : %d\n", counter_accepted_clients, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+
+				FD_CLR(listenSocket, &readfds);	 // ciscenje set-a za sledecu iteraciju
+
+				iResult = ioctlsocket(acceptedSockets[counter_accepted_clients], FIONBIO, &mode);
+				if (iResult != NO_ERROR) {
+					printf("ioctlsocket failed with error: %ld\n", iResult);
+				}
+
+				counter_accepted_clients++;
+
+			}
+
+
+			for (int i = 0; i < counter_accepted_clients; i++) {
+				if ((FD_ISSET(acceptedSockets[i], &readfds)) == 1) {   // ako se desio dogadjaj recv:
+
+					FD_CLR(acceptedSockets[i], &readfds);
+
+					int iResult = recv(acceptedSockets[i], recvbuf, DEFAULT_BUFLEN, 0);
+					if (iResult > 0)
+					{
+						Directly_Message *directly_message = (Directly_Message*)recvbuf;
+						// samo za testiranje:
+						EnterCriticalSection(&critical_section_directly);
+						printf("Message: %s\n", directly_message->message);
+						printf("Flag: %s\n", directly_message->flag);
+						LeaveCriticalSection(&critical_section_directly);
+
+
+						if (strcmp((char*)directly_message->flag, "0\0") == 0) {  // klijent se konektovao na mene
+
+							printf("Ubacivanje klijenta u Hash Map-u\n");
+
+						}
+						else if(strcmp((char*)directly_message->flag, "1\0") == 0){
+
+							printf("Ispis klijentove poruke\n");
+						} 
+						else {
+
+							continue;
+						}
+						
+
+					}
+					else if (iResult == 0)	// Check if shutdown command is received   // ako je client poslao shutdown signal, hoce da se iskljuci iz komunikacije:
+					{
+
+
+					}
+					else  // desila se greska u recv:
+					{
+						if (WSAGetLastError() == WSAEWOULDBLOCK) {
+							continue;
+
+						}
+						else {
+
+
+
+
+						}
+
+
+					}
+
+
+
+
+
+				}
+
+			}
+
+
+
+
+
+
+		}
+
+
+
+
+
+	} while (true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	return 0;
+}
 
 
 int main()
 {
 
 	Client_Information_Directly *client_information_for_thread = (Client_Information_Directly*)malloc(sizeof(Client_Information_Directly));
-	//Client_Information_Directly *client_information_for_thread;
+	//Client_Information_Directly client_information_for_thread;
 
 	HANDLE thread;
 	DWORD thread_id;
@@ -462,6 +647,9 @@ int main()
 
 	HANDLE thread_send_message_directly;
 	DWORD thread_send_message_directly_id;
+
+	HANDLE thread_for_accept_clients;
+	DWORD thread_for_accept_clients_id;
 
 	FinishSignal = CreateSemaphore(NULL, 0, 1, NULL);  // nit thread obavestava main() kada se server iskljuci
 						// kada dodam jos nit za acceptedSockete koristiti ga i staviti da je max = 2...
@@ -476,8 +664,9 @@ int main()
 		InitializeCriticalSection(&critical_section_server);
 		InitializeCriticalSection(&critical_section_directly);
 		thread = CreateThread(NULL, 0, &thread_function, NULL, CREATE_SUSPENDED, &thread_id);
-		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, &client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
-		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, &client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
+		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
+		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
+		thread_for_accept_clients = CreateThread(NULL, 0, &function_accept_clients, NULL, CREATE_SUSPENDED, &thread_for_accept_clients_id);
 
 	}
 	else {
@@ -490,6 +679,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread);
 		SAFE_DELETE_HANDLE(thread_directly_recv);
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
+		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		DeleteCriticalSection(&critical_section_server);
 		DeleteCriticalSection(&critical_section_directly);
 
@@ -510,15 +700,21 @@ int main()
 
 
 
-	connectSocket = INVALID_SOCKET;
+	connectSocket = INVALID_SOCKET;  // za konekciju sa serverom
 
-	for (int i = 0; i < MAX_CLIENTS; i++) {
+	for (int i = 0; i < MAX_CLIENTS; i++) {  // za slanje zahteva za konekciju sa klijentima
 		coonectSockets_directly[i] = INVALID_SOCKET;
 	}
 	count_connect_sockets = 0;
 
-	// Socket used for listening for new clients 
-	SOCKET listenSocket = INVALID_SOCKET;
+	listenSocket = INVALID_SOCKET;
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		acceptedSockets[i] = INVALID_SOCKET;
+	}
+	counter_accepted_clients = 0;
+
+
+
 	// variable used to store function return value
 	int iResult;
 
@@ -746,8 +942,8 @@ int main()
 		printf("ioctlsocket failed with error: %ld\n", iResult);
 	}
 
-	// odavde bi trebalo da se ukljuci i druga nit koja ce primati sve poruke od servera za prvi tip komunikacije
-	ResumeThread(thread);
+	ResumeThread(thread);  // nit koja ce primati sve poruke od servera za prvi tip komunikacije
+	ResumeThread(thread_for_accept_clients);  // nit koja ce osluskivati i accept-ovati ostale klijente
 
 	//printf("*******************");
 	//Sleep(5000);
@@ -920,14 +1116,15 @@ int main()
 	strcpy((char*)packet.flag, "3\0");  // direktno
 	printf("Presli ste na direktan nacin komunikacije sa klijentima!\n");
 
-	char *directly_message = (char*)malloc(MAX_DIRECTLY_MESSAGE);
-	Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
+	char *directly_message = (char*)malloc(MAX_MESSAGE_DIRECTLY);
+	//Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
+	Directly_Message directly_message_packet;
 
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartMainSignal };
 	while (WaitForMultipleObjects((DWORD)2, semaphores, FALSE, INFINITE) == WAIT_OBJECT_0 + 1) {
 
 		Sleep(110);
-		bool break_svega = false;
+		bool break_all = false;
 
 		EnterCriticalSection(&critical_section_directly);
 		printf("Unesite naziv klijenta sa kojim zelite da komunicirate:\n");
@@ -1003,22 +1200,23 @@ int main()
 					{
 						nasao = true;
 
-						EnterCriticalSection(&critical_section_server);
+						getchar();
+						EnterCriticalSection(&critical_section_directly);
 						printf("Unesite poruku:\n");
-						fgets(directly_message, MAX_MESSAGE, stdin);
-						LeaveCriticalSection(&critical_section_server);
+						fgets(directly_message, MAX_MESSAGE_DIRECTLY, stdin);
+						LeaveCriticalSection(&critical_section_directly);
 
 						if (WaitForSingleObject(FinishSignal_Directly, 1) != WAIT_TIMEOUT) {
-							break_svega = true;
+							break_all = true;
 							break;
 						}
 
 						//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 						directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
-						strcpy((char*)directly_message_packet->flag, "1\0");
-						sprintf((char*)directly_message_packet->message, "[%s]:%s", (char*)sender, directly_message);
-						printf("Poruka direktna za klijenta: %s\n", directly_message_packet->message);
-						iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+						strcpy((char*)directly_message_packet.flag, "1\0");
+						sprintf((char*)directly_message_packet.message, "[%s]:%s", (char*)sender, directly_message);
+						printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+						iResult = send(coonectSockets_directly[k], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 						if (iResult == SOCKET_ERROR)
 						{
 							//printf("send failed with error: %d\n", WSAGetLastError());
@@ -1036,14 +1234,16 @@ int main()
 							//WSACleanup();
 							//return 1;
 						}
-
-						printf("Poruka je uspesno poslata zeljenom klijentu!\n");
+						else {
+							printf("Poruka je uspesno poslata zeljenom klijentu!\n");
+						}
+						
 						break;
 					}
 
 				}
 
-				if (break_svega = true) {
+				if (break_all == true) {
 					break;
 				}
 
@@ -1095,6 +1295,8 @@ int main()
 		WSACleanup();
 		return 1;
 	}
+
+	free(directly_message);
 
 	closesocket(connectSocket);
 	WSACleanup();

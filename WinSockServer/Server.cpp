@@ -8,7 +8,7 @@
 #define MAX_CLIENTS 10
 #define DEFAULT_ADDRESS "127.0.0.1"
 #define MAX_USERNAME 25
-#define MAX_MESSAGE 400
+#define MAX_MESSAGE 300
 #define MAX_ADDRESS 50
 
 bool InitializeWindowsSockets();
