@@ -475,6 +475,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 	timeVal.tv_sec = 1;
 	timeVal.tv_usec = 0;
 
+
 	do {
 
 		if (counter_accepted_clients < MAX_CLIENTS) {  // ako je sledece mesto za upis klijenta 0 1 ili 2 => ako nemamo jos uvek 3 klijenta
@@ -566,13 +567,14 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 							inet_ntop(AF_INET, &socketAddress.sin_addr, client_address, INET_ADDRSTRLEN);
 
 							ClientData *newClient = (ClientData*)malloc(sizeof(ClientData));
-							strcpy((char*)newClient->name, (char*)directly_message->message);
+							unsigned char name[MAX_USERNAME];
+							strcpy((char*)name, (char*)directly_message->message);
+							strcpy((char*)newClient->name, (char*)name);
 							strcpy((char*)newClient->address, (char*)client_address);
 							newClient->port = (unsigned int)ntohs(socketAddress.sin_port);
 							strcpy((char*)newClient->socket_type, "1\0");
 							AddValueToHashMap(HashMap, newClient);
 							ShowHashMap(HashMap);
-							free(newClient);
 
 						}
 						else if(strcmp((char*)directly_message->flag, "1\0") == 0){
@@ -704,7 +706,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 
 
-
+	
 
 	return 0;
 }
@@ -1211,7 +1213,8 @@ int main()
 		if (WaitForSingleObject(FinishSignal_Directly, 1) != WAIT_TIMEOUT) {
 			break;
 		}
-
+		 
+		ShowHashMap(HashMap);  // bude prazna, iako zapravo nije - u slucaju kada imam klijenta u acceptedSocket-ima a hocu da mu posaljem poruku
 		if (!ClientExistsInHashMap(HashMap, receiver)) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
 
 			strcpy((char*)packet.receiver, (char*)receiver);
@@ -1237,6 +1240,86 @@ int main()
 
 				// pretraziti acceptedSocket-e
 
+				bool nasao_a = false;
+
+				struct sockaddr_in socketAddress;  // struktura za smestanje adrese i porta iz socket-a iz connectSocket_directly niza
+				int socketAddress_len = sizeof(socketAddress);
+
+				for (int k = 0; k < counter_accepted_clients; k++)
+				{
+					// Ask getsockname to fill in this socket's local adress
+					if (getpeername(acceptedSockets[k], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+					{
+						//printf("getsockname() failed.\n");
+						//return -1;
+						// doraditi...
+						//printf("Pokusajte ponovo!\n");
+						break;
+					}
+
+					char client_address[MAX_ADDRESS];  // klijentska listen address-a, samo pretvorena u ascii
+					//strcpy(client_address, inet_ntoa(socketAddress.sin_addr));
+					inet_ntop(AF_INET, &socketAddress.sin_addr, client_address, INET_ADDRSTRLEN);
+					//printf("%d\n", (int)ntohs(socketAddress.sin_port));
+					//printf("%d\n", (int)htons(socketAddress.sin_port));
+					//printf("%d\n", ntohs(socketAddress.sin_port));
+
+
+					if ((strcmp(client_address, (char*)client_from_HashMap->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == client_from_HashMap->port))
+					{
+						nasao_a = true;
+
+						getchar();
+						EnterCriticalSection(&critical_section_directly);
+						printf("Unesite poruku:\n");
+						fgets(directly_message, MAX_MESSAGE_DIRECTLY, stdin);
+						LeaveCriticalSection(&critical_section_directly);
+
+						if (WaitForSingleObject(FinishSignal_Directly, 1) != WAIT_TIMEOUT) {
+							break_all = true;
+							break;
+						}
+
+						//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
+						directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
+						strcpy((char*)directly_message_packet.flag, "1\0");
+						sprintf((char*)directly_message_packet.message, "[%s]:%s", (char*)sender, directly_message);
+						//printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+						iResult = send(acceptedSockets[k], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+						if (iResult == SOCKET_ERROR)
+						{
+							//printf("send failed with error: %d\n", WSAGetLastError());
+							printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
+							closesocket(acceptedSockets[k]);
+							for (int j = k; j < counter_accepted_clients - 1; j++)
+							{
+								acceptedSockets[j] = acceptedSockets[j + 1];
+							}
+							acceptedSockets[counter_accepted_clients - 1] = INVALID_SOCKET;
+							counter_accepted_clients--;
+
+							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
+							ShowHashMap(HashMap);
+							//WSACleanup();
+							//return 1;
+						}
+						else {
+							printf("Poruka je uspesno poslata zeljenom klijentu!\n");
+						}
+
+						break;
+					}
+
+				}
+
+				if (break_all == true) {
+					break;
+				}
+
+				if (nasao_a == false) {  // ako se desi greska na getsockname() ili ako ne postoji socket u nizu acceptSocket sa adresom i portom trazenog klijenta
+
+					printf("Pokusajte ponovo!\n");
+				}
 
 
 
