@@ -8,7 +8,7 @@
 #define MAX_CLIENTS 10
 #define DEFAULT_ADDRESS "127.0.0.1"
 #define MAX_USERNAME 25
-#define MAX_MESSAGE 300
+#define MAX_MESSAGE 400
 #define MAX_ADDRESS 50
 
 bool InitializeWindowsSockets();
@@ -216,7 +216,7 @@ int  main(void)
 					if (ioctlsocket(acceptedSockets[connectedSockets], FIONBIO, &mode) != 0)
 					{
 						printf("ioctlsocket failed with error.");
-						continue;
+						//continue;
 					}
 					connectedSockets++;
 					printf("New client request accepted (%d). Client address: %s : %d\n", connectedSockets, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
@@ -554,7 +554,8 @@ int  main(void)
 								int socketAddress_len = sizeof(struct sockaddr_in);
 								if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
 								{
-									printf("getsockname() failed.\n"); return -1;
+									//printf("getsockname() failed.\n"); return -1;
+									break;
 								}
 								char tempClientAddress[MAXLEN];
 								inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
@@ -593,7 +594,6 @@ int  main(void)
 							// TO DO: Naci klijenta u Hash mapi koji ima adresu i port isto kao i acceptedSocket[i] i obrisati ga iz Hash mape.
 							for (int j = 0; j < MAX_CLIENTS; j++)
 							{
-
 								struct Element *tempClientElement = HashMap[j];
 								while (tempClientElement)
 								{
@@ -601,7 +601,8 @@ int  main(void)
 									int socketAddress_len = sizeof(struct sockaddr_in);
 									if (getpeername(acceptedSockets[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
 									{
-										printf("getsockname() failed.\n"); return -1;
+										//printf("getsockname() failed.\n"); return -1;
+										break;
 									}
 									char tempClientAddress[MAXLEN];
 									inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
