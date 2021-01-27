@@ -415,7 +415,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			directly_message[strlen(directly_message) - 1] = directly_message[strlen(directly_message)];  // skidam novi red
 			strcpy((char*)directly_message_packet.flag, "1\0");
 			sprintf((char*)directly_message_packet.message, "[%s]:%s", information->my_username, directly_message);
-			printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+			//printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
 			iResult = send(coonectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
 			if (iResult == SOCKET_ERROR)
 			{
@@ -589,6 +589,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 						else if(strcmp((char*)directly_message->flag, "1\0") == 0){
 
 							printf("%s\n", directly_message->message);
+
 						} 
 						else {
 
@@ -785,6 +786,9 @@ int main()
 
 	}
 
+	EnterCriticalSection(&critical_section_hash_map);
+	InitializeHashMap(HashMap);
+	LeaveCriticalSection(&critical_section_hash_map);
 
 	struct Message_For_Client  // saljem serveru
 	{
@@ -1156,10 +1160,6 @@ int main()
 	/*-------------------------------------------------------------DIREKTNA KOMUNIKACIJA----------------------------------------------------------------------------------------*/
 	free(message);
 
-	EnterCriticalSection(&critical_section_hash_map);
-	InitializeHashMap(HashMap);
-	LeaveCriticalSection(&critical_section_hash_map);
-
 	// serveru prebaci me na direktno
 	strcpy((char*)packet.flag, "4\0");
 	iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);  // sizeof(Message_For_Client)
@@ -1238,7 +1238,6 @@ int main()
 		bool postoji = false;
 
 		EnterCriticalSection(&critical_section_hash_map);
-		//ShowHashMap(HashMap);  // bude prazna, iako zapravo nije - u slucaju kada imam klijenta u acceptedSocket-ima a hocu da mu posaljem poruku
 		postoji = ClientExistsInHashMap(HashMap, receiver);
 		LeaveCriticalSection(&critical_section_hash_map);
 
