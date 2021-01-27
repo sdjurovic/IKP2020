@@ -68,10 +68,10 @@ struct Element* HashMap[MAX_CLIENTS];
 
 DWORD WINAPI thread_function(LPVOID parametri) {
 
-	while (WaitForSingleObject(FinishThreadSignal, 1) == WAIT_TIMEOUT) {
+	int iResult;
+	char recvbuf[DEFAULT_BUFLEN];
 
-		int iResult;
-		char recvbuf[DEFAULT_BUFLEN];
+	while (WaitForSingleObject(FinishThreadSignal, 1) == WAIT_TIMEOUT) {
 
 		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
 		if (iResult > 0)
@@ -88,7 +88,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 			//connection was closed gracefully
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
-			ReleaseSemaphore(FinishSignal, 2, NULL);
+			ReleaseSemaphore(FinishSignal, 3, NULL);
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -130,7 +130,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 				//printf("recv failed with error: %d\n", WSAGetLastError());
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
-				ReleaseSemaphore(FinishSignal, 2, NULL);
+				ReleaseSemaphore(FinishSignal, 3, NULL);
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -246,7 +246,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
 			ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
-			ReleaseSemaphore(FinishSignal, 1, NULL);
+			ReleaseSemaphore(FinishSignal, 2, NULL);
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -288,7 +288,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
 				ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
-				ReleaseSemaphore(FinishSignal, 1, NULL);
+				ReleaseSemaphore(FinishSignal, 2, NULL);
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -326,6 +326,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 	//Directly_Message *directly_message_packet = (Directly_Message*)malloc(sizeof(Directly_Message));
 	Directly_Message directly_message_packet;
 	int iResult;
+	unsigned long mode = 1;
 
 	HANDLE semaphores[2] = { FinishSignal_Directly, StartSendMessageSignal };
 	while (WaitForMultipleObjects((DWORD)2, semaphores, FALSE, INFINITE) == WAIT_OBJECT_0 + 1) {
@@ -437,6 +438,15 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				LeaveCriticalSection(&critical_section_directly);
 
 			}
+
+			
+			iResult = ioctlsocket(coonectSockets_directly[count_connect_sockets - 1], FIONBIO, &mode);
+			if (iResult != NO_ERROR) {
+				printf("ioctlsocket failed with error: %ld\n", iResult);
+				ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
+				continue;
+			}
+
 
 		}
 
@@ -729,6 +739,173 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 	return 0;
 }
 
+DWORD WINAPI function_recv_coonectSockets_directly(LPVOID parametri) {
+
+	int iResult = 0;
+	char recvbuf[DEFAULT_BUFLEN];
+
+	fd_set readfds;
+	FD_ZERO(&readfds);
+
+	timeval timeVal;
+	timeVal.tv_sec = 1;
+	timeVal.tv_usec = 0;
+
+
+	while (WaitForSingleObject(FinishSignal, 1) == WAIT_TIMEOUT) {
+
+		if (count_connect_sockets == 0) {
+			continue;
+		}
+
+		for (int a = 0; a < count_connect_sockets; a++) {
+			FD_SET(coonectSockets_directly[a], &readfds);
+		}
+
+		iResult = select(0, &readfds, NULL, NULL, &timeVal);
+		if (iResult == 0) {
+
+			continue;
+		}
+		else if (iResult == SOCKET_ERROR) {
+
+			printf("********select failed with error: %ld\n", WSAGetLastError());
+			break;                         // ugasiti server
+
+		}
+		else {  // desio se neki dogadjaj
+
+			for (int i = 0; i < count_connect_sockets; i++) {
+				if ((FD_ISSET(coonectSockets_directly[i], &readfds)) == 1) {   // ako se desio dogadjaj recv:
+
+					FD_CLR(coonectSockets_directly[i], &readfds);
+
+					int iResult = recv(coonectSockets_directly[i], recvbuf, DEFAULT_BUFLEN, 0);
+					if (iResult > 0)
+					{
+						printf("%s\n", recvbuf);
+
+					}
+					else if (iResult == 0)	// Check if shutdown command is received   // ako je client poslao shutdown signal, hoce da se iskljuci iz komunikacije:
+					{
+						for (int j = 0; j < MAX_CLIENTS; j++)
+						{
+							EnterCriticalSection(&critical_section_hash_map);
+							struct Element *tempClientElement = HashMap[j];
+							LeaveCriticalSection(&critical_section_hash_map);
+							while (tempClientElement)
+							{
+								sockaddr_in socketAddress;
+								int socketAddress_len = sizeof(struct sockaddr_in);
+								if (getpeername(coonectSockets_directly[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+								{
+									break;
+								}
+								char tempClientAddress[MAX_ADDRESS];
+								inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
+
+								if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
+								{
+									EnterCriticalSection(&critical_section_hash_map);
+									RemoveValueFromHashMap(HashMap, tempClientElement->clientData->name);
+									printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
+									ShowHashMap(HashMap);
+									LeaveCriticalSection(&critical_section_hash_map);
+									break;
+								}
+								tempClientElement = tempClientElement->nextElement;
+							}
+						}
+
+						closesocket(coonectSockets_directly[i]);
+						for (int j = i; j < count_connect_sockets - 1; j++)
+						{
+							coonectSockets_directly[j] = coonectSockets_directly[j + 1];
+						}
+						coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
+						count_connect_sockets--;
+						i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
+
+
+					}
+					else  // desila se greska u recv:
+					{
+						if (WSAGetLastError() == WSAEWOULDBLOCK) {
+
+							continue;
+						}
+						else {
+
+							for (int j = 0; j < MAX_CLIENTS; j++)
+							{
+								EnterCriticalSection(&critical_section_hash_map);
+								struct Element *tempClientElement = HashMap[j];
+								LeaveCriticalSection(&critical_section_hash_map);
+								while (tempClientElement)
+								{
+									sockaddr_in socketAddress;
+									int socketAddress_len = sizeof(struct sockaddr_in);
+									if (getpeername(coonectSockets_directly[i], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
+									{
+										break;
+									}
+									char tempClientAddress[MAX_ADDRESS];
+									inet_ntop(AF_INET, &socketAddress.sin_addr, tempClientAddress, INET_ADDRSTRLEN);
+
+									if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
+									{
+										EnterCriticalSection(&critical_section_hash_map);
+										RemoveValueFromHashMap(HashMap, tempClientElement->clientData->name);
+										printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
+										ShowHashMap(HashMap);
+										LeaveCriticalSection(&critical_section_hash_map);
+										break;
+									}
+									tempClientElement = tempClientElement->nextElement;
+								}
+							}
+
+							closesocket(coonectSockets_directly[i]);
+							for (int j = i; j < count_connect_sockets - 1; j++)
+							{
+								coonectSockets_directly[j] = coonectSockets_directly[j + 1];
+							}
+							coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
+							count_connect_sockets--;
+							i--;  // DA NE BI PRESKOCILI JEDNOG U PETLJI !!!
+
+
+						}
+
+
+					}
+
+
+
+
+
+				}
+
+			}
+
+
+
+
+
+
+		}
+
+
+
+
+
+	}
+
+
+
+	return 0;
+}
+
 
 int main()
 {
@@ -748,7 +925,10 @@ int main()
 	HANDLE thread_for_accept_clients;
 	DWORD thread_for_accept_clients_id;
 
-	FinishSignal = CreateSemaphore(NULL, 0, 2, NULL);  // nit thread obavestava main() i thread_for_accept_clients kada se server iskljuci
+	HANDLE thread_recv_on_connectSockets;
+	DWORD thread_recv_on_connectSockets_id;
+
+	FinishSignal = CreateSemaphore(NULL, 0, 3, NULL);  // nit thread obavestava main() i thread_for_accept_clients i thread_recv_on_connectSockets kada se server iskljuci
 						// kada dodam jos nit za acceptedSockete koristiti ga i staviti da je max = 2...
 	FinishThreadSignal = CreateSemaphore(NULL, 0, 1, NULL);  // kada se prebacimo na direktnu komunikaciju obavestavamo nit thread da prestane sa radom
 
@@ -765,6 +945,7 @@ int main()
 		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
 		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
 		thread_for_accept_clients = CreateThread(NULL, 0, &function_accept_clients, NULL, CREATE_SUSPENDED, &thread_for_accept_clients_id);
+		thread_recv_on_connectSockets = CreateThread(NULL, 0, &function_recv_coonectSockets_directly, NULL, CREATE_SUSPENDED, &thread_recv_on_connectSockets_id);
 
 	}
 	else {
@@ -774,10 +955,13 @@ int main()
 		SAFE_DELETE_HANDLE(FinishThreadSignal);
 		SAFE_DELETE_HANDLE(FinishSignal_Directly);
 		SAFE_DELETE_HANDLE(StartMainSignal);
+
 		SAFE_DELETE_HANDLE(thread);
 		SAFE_DELETE_HANDLE(thread_directly_recv);
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
+		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+
 		DeleteCriticalSection(&critical_section_server);
 		DeleteCriticalSection(&critical_section_directly);
 		DeleteCriticalSection(&critical_section_hash_map);
@@ -786,9 +970,7 @@ int main()
 
 	}
 
-	EnterCriticalSection(&critical_section_hash_map);
-	InitializeHashMap(HashMap);
-	LeaveCriticalSection(&critical_section_hash_map);
+	
 
 	struct Message_For_Client  // saljem serveru
 	{
@@ -1044,8 +1226,14 @@ int main()
 		printf("ioctlsocket failed with error: %ld\n", iResult);
 	}
 
+
+	EnterCriticalSection(&critical_section_hash_map);
+	InitializeHashMap(HashMap);
+	LeaveCriticalSection(&critical_section_hash_map);
+
 	ResumeThread(thread);  // nit koja ce primati sve poruke od servera za prvi tip komunikacije
 	ResumeThread(thread_for_accept_clients);  // nit koja ce osluskivati i accept-ovati ostale klijente
+	ResumeThread(thread_recv_on_connectSockets);  // nit koja ce primati poruke na connectSockets_directly soketima
 
 	//printf("*******************");
 	//Sleep(5000);
