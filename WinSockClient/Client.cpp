@@ -47,6 +47,9 @@ HANDLE StartSendMessageSignal;
 HANDLE FinishSignal_Directly;
 CRITICAL_SECTION critical_section_directly;
 
+CRITICAL_SECTION critical_section_hash_map;
+
+
 struct Client_Information_Directly  // dobijam od servera informacije o klijentu sa kojim treba da se povezem
 {
 	unsigned char my_username[MAX_USERNAME];
@@ -85,7 +88,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 			//connection was closed gracefully
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
-			ReleaseSemaphore(FinishSignal, 1, NULL);
+			ReleaseSemaphore(FinishSignal, 2, NULL);
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -127,7 +130,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 				//printf("recv failed with error: %d\n", WSAGetLastError());
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
-				ReleaseSemaphore(FinishSignal, 1, NULL);
+				ReleaseSemaphore(FinishSignal, 2, NULL);
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -243,6 +246,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
 			ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
+			ReleaseSemaphore(FinishSignal, 1, NULL);
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -284,6 +288,7 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
 				ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
+				ReleaseSemaphore(FinishSignal, 1, NULL);
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -378,8 +383,10 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			strcpy((char*)newClient->address, (char*)information->listen_address);
 			newClient->port = information->listen_port;
 			strcpy((char*)newClient->socket_type, "0\0");
+			EnterCriticalSection(&critical_section_hash_map);
 			AddValueToHashMap(HashMap, newClient);
 			ShowHashMap(HashMap);
+			LeaveCriticalSection(&critical_section_hash_map);
 
 			// slanje mog imena klijentu da bi me upisao u Hash Mapu:
 			strcpy((char*)directly_message_packet.flag, "0\0");
@@ -476,9 +483,9 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 	timeVal.tv_usec = 0;
 
 
-	do {
+	while (WaitForSingleObject(FinishSignal, 1) == WAIT_TIMEOUT) {
 
-		if (counter_accepted_clients < MAX_CLIENTS) {  // ako je sledece mesto za upis klijenta 0 1 ili 2 => ako nemamo jos uvek 3 klijenta
+		if (counter_accepted_clients < MAX_CLIENTS) {  
 			FD_SET(listenSocket, &readfds);
 		}
 
@@ -573,8 +580,10 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 							strcpy((char*)newClient->address, (char*)client_address);
 							newClient->port = (unsigned int)ntohs(socketAddress.sin_port);
 							strcpy((char*)newClient->socket_type, "1\0");
+							EnterCriticalSection(&critical_section_hash_map);
 							AddValueToHashMap(HashMap, newClient);
 							ShowHashMap(HashMap);
+							LeaveCriticalSection(&critical_section_hash_map);
 
 						}
 						else if(strcmp((char*)directly_message->flag, "1\0") == 0){
@@ -592,7 +601,9 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 					{
 						for (int j = 0; j < MAX_CLIENTS; j++)
 						{
+							EnterCriticalSection(&critical_section_hash_map);
 							struct Element *tempClientElement = HashMap[j];
+							LeaveCriticalSection(&critical_section_hash_map);
 							while (tempClientElement)
 							{
 								sockaddr_in socketAddress;
@@ -606,9 +617,11 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 								if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
 								{
+									EnterCriticalSection(&critical_section_hash_map);
 									RemoveValueFromHashMap(HashMap, tempClientElement->clientData->name);
-									printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
+									//printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
 									ShowHashMap(HashMap);
+									LeaveCriticalSection(&critical_section_hash_map);
 									break;
 								}
 								tempClientElement = tempClientElement->nextElement;
@@ -636,7 +649,9 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 							for (int j = 0; j < MAX_CLIENTS; j++)
 							{
+								EnterCriticalSection(&critical_section_hash_map);
 								struct Element *tempClientElement = HashMap[j];
+								LeaveCriticalSection(&critical_section_hash_map);
 								while (tempClientElement)
 								{
 									sockaddr_in socketAddress;
@@ -650,9 +665,11 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 									if ((strcmp(tempClientAddress, (const char*)tempClientElement->clientData->address) == 0) && ((unsigned int)ntohs(socketAddress.sin_port) == tempClientElement->clientData->port))
 									{
+										EnterCriticalSection(&critical_section_hash_map);
 										RemoveValueFromHashMap(HashMap, tempClientElement->clientData->name);
-										printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
+										//printf("Klijent %s, je uklonjen iz HashMape", tempClientElement->clientData->name);
 										ShowHashMap(HashMap);
+										LeaveCriticalSection(&critical_section_hash_map);
 										break;
 									}
 									tempClientElement = tempClientElement->nextElement;
@@ -693,7 +710,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 
 
-	} while (true);
+	}
 
 
 
@@ -730,18 +747,19 @@ int main()
 	HANDLE thread_for_accept_clients;
 	DWORD thread_for_accept_clients_id;
 
-	FinishSignal = CreateSemaphore(NULL, 0, 1, NULL);  // nit thread obavestava main() kada se server iskljuci
+	FinishSignal = CreateSemaphore(NULL, 0, 2, NULL);  // nit thread obavestava main() i thread_for_accept_clients kada se server iskljuci
 						// kada dodam jos nit za acceptedSockete koristiti ga i staviti da je max = 2...
 	FinishThreadSignal = CreateSemaphore(NULL, 0, 1, NULL);  // kada se prebacimo na direktnu komunikaciju obavestavamo nit thread da prestane sa radom
 
 	StartMainSignal = CreateSemaphore(NULL, 1, 1, NULL);
 	StartSendMessageSignal = CreateSemaphore(NULL, 0, 1, NULL);
-	FinishSignal_Directly = CreateSemaphore(NULL, 0, 2, NULL);
+	FinishSignal_Directly = CreateSemaphore(NULL, 0, 2, NULL);  // nit koja slusa servera tokom direktne obavestava main() i thread_send_message_directly kada se server iskljuci
 
 	if (FinishThreadSignal && FinishSignal && StartSendMessageSignal && FinishSignal_Directly && StartMainSignal) {
 
 		InitializeCriticalSection(&critical_section_server);
 		InitializeCriticalSection(&critical_section_directly);
+		InitializeCriticalSection(&critical_section_hash_map);
 		thread = CreateThread(NULL, 0, &thread_function, NULL, CREATE_SUSPENDED, &thread_id);
 		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
 		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
@@ -761,6 +779,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		DeleteCriticalSection(&critical_section_server);
 		DeleteCriticalSection(&critical_section_directly);
+		DeleteCriticalSection(&critical_section_hash_map);
 
 		return 1;
 
@@ -1137,7 +1156,9 @@ int main()
 	/*-------------------------------------------------------------DIREKTNA KOMUNIKACIJA----------------------------------------------------------------------------------------*/
 	free(message);
 
+	EnterCriticalSection(&critical_section_hash_map);
 	InitializeHashMap(HashMap);
+	LeaveCriticalSection(&critical_section_hash_map);
 
 	// serveru prebaci me na direktno
 	strcpy((char*)packet.flag, "4\0");
@@ -1182,7 +1203,7 @@ int main()
 
 		WaitForSingleObject(thread, INFINITE);  // sacekati da se zavrsi nit
 	}
-	SAFE_DELETE_HANDLE(FinishSignal);
+	//SAFE_DELETE_HANDLE(FinishSignal);  ne smemo jer se koristi i u niti gde se radi accept, a ona i dalje treba da radi   // URADITI NA KRAJU PROGRAMA
 	SAFE_DELETE_HANDLE(FinishThreadSignal);
 	SAFE_DELETE_HANDLE(thread);
 	DeleteCriticalSection(&critical_section_server);
@@ -1214,8 +1235,14 @@ int main()
 			break;
 		}
 		 
-		ShowHashMap(HashMap);  // bude prazna, iako zapravo nije - u slucaju kada imam klijenta u acceptedSocket-ima a hocu da mu posaljem poruku
-		if (!ClientExistsInHashMap(HashMap, receiver)) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
+		bool postoji = false;
+
+		EnterCriticalSection(&critical_section_hash_map);
+		//ShowHashMap(HashMap);  // bude prazna, iako zapravo nije - u slucaju kada imam klijenta u acceptedSocket-ima a hocu da mu posaljem poruku
+		postoji = ClientExistsInHashMap(HashMap, receiver);
+		LeaveCriticalSection(&critical_section_hash_map);
+
+		if (!postoji) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
 
 			strcpy((char*)packet.receiver, (char*)receiver);
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
@@ -1230,7 +1257,9 @@ int main()
 
 			printf("VEC SAM POVEZAN NA TOG KLIJENTA!!! \t Njegovi podaci:\n");
 
+			EnterCriticalSection(&critical_section_hash_map);
 			ClientData *client_from_HashMap = FindValueInHashMap(HashMap, receiver);
+			LeaveCriticalSection(&critical_section_hash_map);
 			printf("Client Name: %s\n", client_from_HashMap->name);
 			printf("Client Listen IP address is: %s\n", client_from_HashMap->address);
 			printf("Client Listen Port is: %d\n", client_from_HashMap->port);
@@ -1298,8 +1327,10 @@ int main()
 							acceptedSockets[counter_accepted_clients - 1] = INVALID_SOCKET;
 							counter_accepted_clients--;
 
+							EnterCriticalSection(&critical_section_hash_map);
 							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
 							ShowHashMap(HashMap);
+							LeaveCriticalSection(&critical_section_hash_map);
 							//WSACleanup();
 							//return 1;
 						}
@@ -1388,8 +1419,10 @@ int main()
 							coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 							count_connect_sockets--;
 
+							EnterCriticalSection(&critical_section_hash_map);
 							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
 							ShowHashMap(HashMap);
+							LeaveCriticalSection(&critical_section_hash_map);
 							//WSACleanup();
 							//return 1;
 						}
@@ -1438,9 +1471,13 @@ int main()
 	SAFE_DELETE_HANDLE(FinishSignal_Directly);
 	SAFE_DELETE_HANDLE(StartMainSignal);
 	SAFE_DELETE_HANDLE(StartSendMessageSignal);
+	SAFE_DELETE_HANDLE(FinishSignal);
+
 	SAFE_DELETE_HANDLE(thread_directly_recv);
 	SAFE_DELETE_HANDLE(thread_send_message_directly);
+	SAFE_DELETE_HANDLE(thread_for_accept_clients);
 	DeleteCriticalSection(&critical_section_directly);
+	DeleteCriticalSection(&critical_section_hash_map);
 
 	printf("\nPress any key to exit: ");
 	_getch();
