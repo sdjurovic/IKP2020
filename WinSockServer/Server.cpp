@@ -640,22 +640,18 @@ int  main(void)
 	for (int i = 0; i < connectedSockets; i++)
 	{
 		// shutdown the connection since we're done
-		iResult = shutdown(acceptedSockets[i], SD_SEND);
+		iResult = shutdown(acceptedSockets[i], SD_BOTH);
 		if (iResult == SOCKET_ERROR)
 		{
 			printf("shutdown failed with error: %d\n", WSAGetLastError());
-			closesocket(acceptedSockets[i]);
-			WSACleanup();
-			return 1;
 		}
-
+		closesocket(acceptedSockets[i]);
 	}
 
 	closesocket(listenSocket);
-	for (int i = 0; i < connectedSockets; i++) {
-		closesocket(acceptedSockets[i]);
-	}
+
 	WSACleanup();
+
 	return 0;
 
 }

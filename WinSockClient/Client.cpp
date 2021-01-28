@@ -23,13 +23,12 @@
 
 #define SERVER_IP_ADDRESS "127.0.0.1"
 
-/* Makro za bezbedno brisanje handle-ova.*/
 #define SAFE_DELETE_HANDLE(a) if(a){CloseHandle(a);}
 
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
-void KrajPrograma();
+void EndOfProgram();
 
 HANDLE FinishSignal;
 HANDLE FinishThreadSignal;
@@ -48,9 +47,9 @@ int counter_accepted_clients;
 
 CRITICAL_SECTION critical_section_hash_map;
 CRITICAL_SECTION critical_section_std;
-CRITICAL_SECTION critical_section_server;  // serverski
-CRITICAL_SECTION critical_section_connect_directly;  // za connectSockets sa klijentima
-CRITICAL_SECTION critical_section_accept_directly;  // za acceptedSockets sa klijentima
+CRITICAL_SECTION critical_section_server;
+CRITICAL_SECTION critical_section_connect_directly;
+CRITICAL_SECTION critical_section_accept_directly;
 
 
 struct Client_Information_Directly  // dobijam od servera informacije o klijentu sa kojim treba da se povezem
@@ -1105,7 +1104,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return 1;
 	}
@@ -1123,7 +1122,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return 1;
 	}
@@ -1139,7 +1138,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return 1;
 	}
@@ -1159,7 +1158,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return -1;
 	}
@@ -1186,7 +1185,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return 1;
 	}
@@ -1206,7 +1205,7 @@ int main()
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
-		KrajPrograma();
+		EndOfProgram();
 		free(client_information_for_thread);
 		return 1;
 	}
@@ -1237,23 +1236,18 @@ int main()
 		{
 			//printf("send failed with error: %d\n", WSAGetLastError());
 			printf("Server vise nije dostupan!");
-			iResult = shutdown(connectSocket, SD_BOTH);
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("Shutdown failed with error: %d\n", WSAGetLastError());
-				free(message);
-				closesocket(connectSocket);
-				WSACleanup();
-				return 1;
-			}
-
-			printf("\nPress any key to exit: ");
-			_getch();
-
+			
+			SAFE_DELETE_HANDLE(thread);
+			SAFE_DELETE_HANDLE(thread_directly_recv);
+			SAFE_DELETE_HANDLE(thread_send_message_directly);
+			SAFE_DELETE_HANDLE(thread_for_accept_clients);
+			SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+			SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+			EndOfProgram();
+			free(client_information_for_thread);
 			free(message);
-			closesocket(connectSocket);
-			WSACleanup();
 			return 0;
+
 		}
 
 		// primanje odgovora od servera
@@ -1281,25 +1275,15 @@ int main()
 			//connection was closed gracefully
 			//printf("Connection with server closed.\n");
 			printf("Server vise nije dostupan!\n");
-			iResult = shutdown(connectSocket, SD_BOTH);
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("Shutdown failed with error: %d\n", WSAGetLastError());
-				closesocket(connectSocket);
-				WSACleanup();
-				free(message);
-				free(client_information_for_thread);
-				return 1;
-			}
-
-			printf("\nPress any key to exit: ");
-			_getch();
-
-			closesocket(connectSocket);
-			WSACleanup();
-			free(message);
+			SAFE_DELETE_HANDLE(thread);
+			SAFE_DELETE_HANDLE(thread_directly_recv);
+			SAFE_DELETE_HANDLE(thread_send_message_directly);
+			SAFE_DELETE_HANDLE(thread_for_accept_clients);
+			SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+			SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+			EndOfProgram();
 			free(client_information_for_thread);
-
+			free(message);
 			return 0;
 
 		}
@@ -1309,25 +1293,15 @@ int main()
 			//printf("recv failed with error: %d\n", WSAGetLastError());
 			//closesocket(connectSocket);
 			printf("Server vise nije dostupan!\n");
-			iResult = shutdown(connectSocket, SD_BOTH);
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("Shutdown failed with error: %d\n", WSAGetLastError());
-				closesocket(connectSocket);
-				WSACleanup();
-				free(message);
-				free(client_information_for_thread);
-				return 1;
-			}
-
-			printf("\nPress any key to exit: ");
-			_getch();
-
-			closesocket(connectSocket);
-			WSACleanup();
-			free(message);
+			SAFE_DELETE_HANDLE(thread);
+			SAFE_DELETE_HANDLE(thread_directly_recv);
+			SAFE_DELETE_HANDLE(thread_send_message_directly);
+			SAFE_DELETE_HANDLE(thread_for_accept_clients);
+			SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+			SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+			EndOfProgram();
 			free(client_information_for_thread);
-
+			free(message);
 			return 0;
 
 		}
@@ -1339,26 +1313,18 @@ int main()
 	unsigned long mode = 1;
 	iResult = ioctlsocket(connectSocket, FIONBIO, &mode);
 	if (iResult != NO_ERROR) {
+
 		printf("ioctlsocket failed with error: %ld\n", iResult);
-		iResult = shutdown(connectSocket, SD_BOTH);
-		if (iResult == SOCKET_ERROR)
-		{
-			printf("Shutdown failed with error: %d\n", WSAGetLastError());
-			closesocket(connectSocket);
-			WSACleanup();
-			free(message);
-			free(client_information_for_thread);
-			return 1;
-		}
-
-		printf("\nPress any key to exit: ");
-		_getch();
-
-		closesocket(connectSocket);
-		WSACleanup();
-		free(message);
+		
+		SAFE_DELETE_HANDLE(thread);
+		SAFE_DELETE_HANDLE(thread_directly_recv);
+		SAFE_DELETE_HANDLE(thread_send_message_directly);
+		SAFE_DELETE_HANDLE(thread_for_accept_clients);
+		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+		SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+		EndOfProgram();
 		free(client_information_for_thread);
-
+		free(message);
 		return 0;
 	}
 
@@ -1459,12 +1425,15 @@ int main()
 		}
 		
 		// obrisane sve niti - ok
+		SAFE_DELETE_HANDLE(thread);  // ok
 		SAFE_DELETE_HANDLE(thread_directly_recv);
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
 
-		KrajPrograma();
+		SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+		
+		EndOfProgram();
 
 		free(message);
 		free(client_information_for_thread);
@@ -1496,12 +1465,15 @@ int main()
 			WaitForSingleObject(thread_for_accept_clients, INFINITE);
 		}
 		
+		SAFE_DELETE_HANDLE(thread);  // ok
 		SAFE_DELETE_HANDLE(thread_directly_recv);
 		SAFE_DELETE_HANDLE(thread_send_message_directly);
 		SAFE_DELETE_HANDLE(thread_for_accept_clients);
 		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
 
-		KrajPrograma();
+		SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+		
+		EndOfProgram();
 
 		free(message);
 		free(client_information_for_thread);
@@ -1822,7 +1794,7 @@ int main()
 	SAFE_DELETE_HANDLE(thread_for_accept_clients);
 	SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
 
-	KrajPrograma();
+	EndOfProgram();
 
 	free(directly_message);
 	free(client_information_for_thread);
@@ -1843,7 +1815,7 @@ bool InitializeWindowsSockets()
 	return true;
 }
 
-void KrajPrograma() {
+void EndOfProgram() {
 
 	int iResult = 0;
 
