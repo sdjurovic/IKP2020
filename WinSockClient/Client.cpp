@@ -33,22 +33,24 @@ void KrajPrograma();
 
 HANDLE FinishSignal;
 HANDLE FinishThreadSignal;
-
-SOCKET connectSocket;  // socket used to communicate with server
-SOCKET connectSockets_directly[MAX_DIRECTLY_CONNECTIONS];  // sockets used to communicate with other clients
-int count_connect_sockets;
-SOCKET listenSocket;  // Socket used for listening for other clients 
-SOCKET acceptedSockets[MAX_DIRECTLY_CONNECTIONS];  // Socket used for communication with other client
-int counter_accepted_clients;
-
-
 HANDLE StartMainSignal;
 HANDLE StartSendMessageSignal;
 HANDLE FinishSignal_Directly;
 
+SOCKET connectSocket;  // socket used to communicate with server
+
+SOCKET connectSockets_directly[MAX_DIRECTLY_CONNECTIONS];  // sockets used to communicate with other clients
+int count_connect_sockets;
+
+SOCKET listenSocket;  // Socket used for listening for other clients 
+SOCKET acceptedSockets[MAX_DIRECTLY_CONNECTIONS];  // Socket used for communication with other client
+int counter_accepted_clients;
+
 CRITICAL_SECTION critical_section_hash_map;
 CRITICAL_SECTION critical_section_std;
 CRITICAL_SECTION critical_section_server;  // serverski
+CRITICAL_SECTION critical_section_connect_directly;  // za connectSockets sa klijentima
+CRITICAL_SECTION critical_section_accept_directly;  // za acceptedSockets sa klijentima
 
 
 struct Client_Information_Directly  // dobijam od servera informacije o klijentu sa kojim treba da se povezem
@@ -74,7 +76,9 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 
 	while (WaitForSingleObject(FinishThreadSignal, 1) == WAIT_TIMEOUT) {
 
+		EnterCriticalSection(&critical_section_server);
 		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
+		LeaveCriticalSection(&critical_section_server);
 		if (iResult > 0)
 		{
 			//recvbuf[iResult] = '\0';
@@ -175,11 +179,12 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 	int iResult;
 	char recvbuf[DEFAULT_BUFLEN];
 	Client_Information_Directly *client_informations;
-	//int count_connect_sockets = 0;
 
 	while (true) {
 
+		EnterCriticalSection(&critical_section_server);
 		iResult = recv(connectSocket, recvbuf, DEFAULT_BUFLEN, 0);  // sta god da dobije od servera treba da ispise i da zavrti petlju opet...
+		LeaveCriticalSection(&critical_section_server);
 		if (iResult > 0)
 		{
 			//recvbuf[iResult] = '\0';
@@ -349,9 +354,11 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 		LeaveCriticalSection(&critical_section_std);
 
 		// create a socket
+		EnterCriticalSection(&critical_section_connect_directly);
 		connectSockets_directly[count_connect_sockets] = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (connectSockets_directly[count_connect_sockets] == INVALID_SOCKET)
 		{
+			LeaveCriticalSection(&critical_section_connect_directly);
 			//printf("socket failed with error: %ld\n", WSAGetLastError());
 			EnterCriticalSection(&critical_section_std);
 			printf("Pokusajte ponovo!\n");
@@ -361,6 +368,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			//WSACleanup();
 			//return 1;
 		}
+		LeaveCriticalSection(&critical_section_connect_directly);
 
 		// create and initialize address structure
 		sockaddr_in serverAddress;
@@ -373,6 +381,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 
 
 		// connect to server specified in serverAddress and socket connectSocket
+		EnterCriticalSection(&critical_section_connect_directly);
 		if (connect(connectSockets_directly[count_connect_sockets], (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 		{
 			EnterCriticalSection(&critical_section_std);
@@ -382,6 +391,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			closesocket(connectSockets_directly[count_connect_sockets]);
 			connectSockets_directly[count_connect_sockets] = INVALID_SOCKET;
 			//WSACleanup();
+			LeaveCriticalSection(&critical_section_connect_directly);
 			ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
 			continue;
 			// dopuniti...
@@ -390,6 +400,7 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 		else {
 
 			count_connect_sockets++;
+			LeaveCriticalSection(&critical_section_connect_directly);
 			printf("POVEZAO SAM SE NA KLIJENTA!!! \t Njegova adresa i port: %s : %d \n", inet_ntoa(serverAddress.sin_addr), ntohs(serverAddress.sin_port));
 			EnterCriticalSection(&critical_section_std);
 			printf("Konekcija je uspesno ostvarena!\n");
@@ -408,7 +419,9 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			// slanje mog imena klijentu da bi me upisao u Hash Mapu:
 			strcpy((char*)directly_message_packet.flag, "0\0");
 			strcpy((char*)directly_message_packet.message, (char*)information->my_username);
+			EnterCriticalSection(&critical_section_connect_directly);
 			iResult = send(connectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+			LeaveCriticalSection(&critical_section_connect_directly);
 			if (iResult == SOCKET_ERROR)
 			{
 				//printf("send failed with error: %d\n", WSAGetLastError());
@@ -416,9 +429,11 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				printf("Klijent vise nije dostupan!\n");
 				LeaveCriticalSection(&critical_section_std);
 				// poravnavanje socket-a nije potrebno jer j euvek u pitanju poslednji
+				EnterCriticalSection(&critical_section_connect_directly);
 				closesocket(connectSockets_directly[count_connect_sockets - 1]);
 				connectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 				count_connect_sockets--;
+				LeaveCriticalSection(&critical_section_connect_directly);
 				EnterCriticalSection(&critical_section_hash_map);
 				RemoveValueFromHashMap(HashMap, newClient->name);
 				ShowHashMap(HashMap);
@@ -439,7 +454,9 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			strcpy((char*)directly_message_packet.flag, "1\0");
 			sprintf((char*)directly_message_packet.message, "[%s]:%s", information->my_username, directly_message);
 			//printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+			EnterCriticalSection(&critical_section_connect_directly);
 			iResult = send(connectSockets_directly[count_connect_sockets - 1], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+			LeaveCriticalSection(&critical_section_connect_directly);
 			if (iResult == SOCKET_ERROR)
 			{
 				//printf("send failed with error: %d\n", WSAGetLastError());
@@ -447,9 +464,11 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
 				LeaveCriticalSection(&critical_section_std);
 				// poravnavanje socket-a nije potrebno jer j euvek u pitanju poslednji
+				EnterCriticalSection(&critical_section_connect_directly);
 				closesocket(connectSockets_directly[count_connect_sockets - 1]);
 				connectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 				count_connect_sockets--;
+				LeaveCriticalSection(&critical_section_connect_directly);
 				EnterCriticalSection(&critical_section_hash_map);
 				RemoveValueFromHashMap(HashMap, newClient->name);
 				ShowHashMap(HashMap);
@@ -467,13 +486,17 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 
 			}
 
+			EnterCriticalSection(&critical_section_connect_directly);
 			iResult = ioctlsocket(connectSockets_directly[count_connect_sockets - 1], FIONBIO, &mode);
+			LeaveCriticalSection(&critical_section_connect_directly);
 			if (iResult != NO_ERROR) {
 				//printf("ioctlsocket failed with error: %ld\n", iResult);
 				// poravnavanje socket-a nije potrebno jer je uvek u pitanju poslednji
+				EnterCriticalSection(&critical_section_connect_directly);
 				closesocket(connectSockets_directly[count_connect_sockets - 1]);
 				connectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 				count_connect_sockets--;
+				LeaveCriticalSection(&critical_section_connect_directly);
 				EnterCriticalSection(&critical_section_hash_map);
 				RemoveValueFromHashMap(HashMap, newClient->name);
 				ShowHashMap(HashMap);
@@ -529,6 +552,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 	while (WaitForSingleObject(FinishSignal, 1) == WAIT_TIMEOUT) {
 
+		EnterCriticalSection(&critical_section_accept_directly);
 		if (counter_accepted_clients < MAX_DIRECTLY_CONNECTIONS) {
 			FD_SET(listenSocket, &readfds);
 		}
@@ -539,12 +563,13 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 		iResult = select(0, &readfds, NULL, NULL, &timeVal);
 		if (iResult == 0) {
-
+			LeaveCriticalSection(&critical_section_accept_directly);
 			continue;					 
 		}
 		else if (iResult == SOCKET_ERROR) {
 
 			//printf("select failed with error: %ld\n", WSAGetLastError());
+			LeaveCriticalSection(&critical_section_accept_directly);
 			return 1;
 
 		}
@@ -565,6 +590,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 					printf("accept failed with error: %d\n", WSAGetLastError());
 					closesocket(listenSocket);
 					//WSACleanup();
+					LeaveCriticalSection(&critical_section_accept_directly);
 					return 1;
 
 				}
@@ -784,6 +810,8 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 		}
 
+		LeaveCriticalSection(&critical_section_accept_directly);
+
 
 	}
 
@@ -806,7 +834,9 @@ DWORD WINAPI function_recv_connectSockets_directly(LPVOID parametri) {
 
 	while (WaitForSingleObject(FinishSignal_Directly, 1) == WAIT_TIMEOUT) {
 
+		EnterCriticalSection(&critical_section_connect_directly);
 		if (count_connect_sockets == 0) {
+			LeaveCriticalSection(&critical_section_connect_directly);
 			continue;
 		}
 
@@ -817,11 +847,13 @@ DWORD WINAPI function_recv_connectSockets_directly(LPVOID parametri) {
 		iResult = select(0, &readfds, NULL, NULL, &timeVal);
 		if (iResult == 0) {
 
+			LeaveCriticalSection(&critical_section_connect_directly);
 			continue;
 		}
 		else if (iResult == SOCKET_ERROR) {
 
 			//printf("select failed with error: %ld\n", WSAGetLastError());
+			LeaveCriticalSection(&critical_section_connect_directly);
 			return 1;
 
 		}
@@ -939,6 +971,8 @@ DWORD WINAPI function_recv_connectSockets_directly(LPVOID parametri) {
 
 		}
 
+		LeaveCriticalSection(&critical_section_connect_directly);
+
 	}
 
 	return 0;
@@ -979,6 +1013,8 @@ int main()
 		InitializeCriticalSection(&critical_section_hash_map);
 		InitializeCriticalSection(&critical_section_std);
 		InitializeCriticalSection(&critical_section_server);
+		InitializeCriticalSection(&critical_section_connect_directly);
+		InitializeCriticalSection(&critical_section_accept_directly);
 		thread = CreateThread(NULL, 0, &thread_function, NULL, CREATE_SUSPENDED, &thread_id);
 		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
 		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
@@ -1003,6 +1039,8 @@ int main()
 		DeleteCriticalSection(&critical_section_hash_map);
 		DeleteCriticalSection(&critical_section_std);
 		DeleteCriticalSection(&critical_section_server);
+		DeleteCriticalSection(&critical_section_connect_directly);
+		DeleteCriticalSection(&critical_section_accept_directly);
 
 		return 1;
 
@@ -1387,7 +1425,9 @@ int main()
 			//printf("Poruka: %s\nbroj bajta: %d\n", message, strlen((char*)message));
 			message[strlen(message) - 1] = message[strlen(message)];  // skidam novi red
 			strcpy((char*)packet.message, (char*)message);
+			EnterCriticalSection(&critical_section_server);
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);  // sizeof(Message_For_Client)
+			LeaveCriticalSection(&critical_section_server);
 			if (iResult == SOCKET_ERROR)
 			{
 				//printf("send failed with error: %d\n", WSAGetLastError());
@@ -1438,7 +1478,9 @@ int main()
 
 	// serveru prebaci me na direktno
 	strcpy((char*)packet.flag, "4\0");
+	EnterCriticalSection(&critical_section_server);
 	iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);  // sizeof(Message_For_Client)
+	LeaveCriticalSection(&critical_section_server);
 	if (iResult == SOCKET_ERROR)
 	{
 		//printf("send failed with error: %d\n", WSAGetLastError());
@@ -1514,7 +1556,9 @@ int main()
 		if (!postoji) {  // nismo direktno povezani sa zeljenim klijentom, trazimo njegove podatke od servera:
 
 			strcpy((char*)packet.receiver, (char*)receiver);
+			EnterCriticalSection(&critical_section_server);
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
+			LeaveCriticalSection(&critical_section_server);
 			if (iResult == SOCKET_ERROR)
 			{
 				EnterCriticalSection(&critical_section_std);
@@ -1551,14 +1595,17 @@ int main()
 				for (int k = 0; k < counter_accepted_clients; k++)
 				{
 					// Ask getsockname to fill in this socket's local adress
+					EnterCriticalSection(&critical_section_accept_directly);
 					if (getpeername(acceptedSockets[k], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
 					{
 						//printf("getsockname() failed.\n");
 						//return -1;
 						// doraditi...
 						//printf("Pokusajte ponovo!\n");
+						LeaveCriticalSection(&critical_section_accept_directly);
 						break;
 					}
+					LeaveCriticalSection(&critical_section_accept_directly);
 
 					char client_address[MAX_ADDRESS];  // klijentska listen address-a, samo pretvorena u ascii
 					//strcpy(client_address, inet_ntoa(socketAddress.sin_addr));
@@ -1588,13 +1635,16 @@ int main()
 						strcpy((char*)directly_message_packet.flag, "1\0");
 						sprintf((char*)directly_message_packet.message, "[%s]:%s", (char*)sender, directly_message);
 						//printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+						EnterCriticalSection(&critical_section_accept_directly);
 						iResult = send(acceptedSockets[k], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+						LeaveCriticalSection(&critical_section_accept_directly);
 						if (iResult == SOCKET_ERROR)
 						{
 							//printf("send failed with error: %d\n", WSAGetLastError());
 							EnterCriticalSection(&critical_section_std);
 							printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
 							LeaveCriticalSection(&critical_section_std);
+							EnterCriticalSection(&critical_section_accept_directly);
 							closesocket(acceptedSockets[k]);
 							for (int j = k; j < counter_accepted_clients - 1; j++)
 							{
@@ -1602,6 +1652,7 @@ int main()
 							}
 							acceptedSockets[counter_accepted_clients - 1] = INVALID_SOCKET;
 							counter_accepted_clients--;
+							LeaveCriticalSection(&critical_section_accept_directly);
 
 							EnterCriticalSection(&critical_section_hash_map);
 							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
@@ -1648,14 +1699,17 @@ int main()
 				for (int k = 0; k < count_connect_sockets; k++)
 				{
 					// Ask getsockname to fill in this socket's local adress
+					EnterCriticalSection(&critical_section_connect_directly);
 					if (getpeername(connectSockets_directly[k], (sockaddr *)&socketAddress, &socketAddress_len) == -1)
 					{
 						//printf("getsockname() failed.\n");
 						//return -1;
 						// doraditi...
 						//printf("Pokusajte ponovo!\n");
+						LeaveCriticalSection(&critical_section_connect_directly);
 						break;
 					}
+					LeaveCriticalSection(&critical_section_connect_directly);
 
 					char client_address[MAX_ADDRESS];  // klijentska listen address-a, samo pretvorena u ascii
 					//strcpy(client_address, inet_ntoa(socketAddress.sin_addr));
@@ -1685,13 +1739,16 @@ int main()
 						strcpy((char*)directly_message_packet.flag, "1\0");
 						sprintf((char*)directly_message_packet.message, "[%s]:%s", (char*)sender, directly_message);
 						//printf("Poruka direktna za klijenta: %s\n", directly_message_packet.message);
+						EnterCriticalSection(&critical_section_connect_directly);
 						iResult = send(connectSockets_directly[k], (char*)&directly_message_packet, sizeof(directly_message_packet), 0);
+						LeaveCriticalSection(&critical_section_connect_directly);
 						if (iResult == SOCKET_ERROR)
 						{
 							//printf("send failed with error: %d\n", WSAGetLastError());
 							EnterCriticalSection(&critical_section_std);
 							printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
 							LeaveCriticalSection(&critical_section_std);
+							EnterCriticalSection(&critical_section_connect_directly);
 							closesocket(connectSockets_directly[k]);
 							for (int j = k; j < count_connect_sockets - 1; j++)
 							{
@@ -1699,6 +1756,7 @@ int main()
 							}
 							connectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 							count_connect_sockets--;
+							LeaveCriticalSection(&critical_section_connect_directly);
 
 							EnterCriticalSection(&critical_section_hash_map);
 							RemoveValueFromHashMap(HashMap, client_from_HashMap->name);
@@ -1798,6 +1856,9 @@ void KrajPrograma() {
 	// k.s. doraditi...
 	DeleteCriticalSection(&critical_section_hash_map);
 	DeleteCriticalSection(&critical_section_std);
+	DeleteCriticalSection(&critical_section_server);
+	DeleteCriticalSection(&critical_section_connect_directly);
+	DeleteCriticalSection(&critical_section_accept_directly);
 
 	printf("\nPress any key to exit: ");
 	_getch();
