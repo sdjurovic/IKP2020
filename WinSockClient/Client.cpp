@@ -88,7 +88,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 			//connection was closed gracefully
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
-			ReleaseSemaphore(FinishSignal, 3, NULL);
+			ReleaseSemaphore(FinishSignal, 2, NULL);  // obavestava main() i thread_for_accepted_clients
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -130,7 +130,7 @@ DWORD WINAPI thread_function(LPVOID parametri) {
 				//printf("recv failed with error: %d\n", WSAGetLastError());
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
-				ReleaseSemaphore(FinishSignal, 3, NULL);
+				ReleaseSemaphore(FinishSignal, 2, NULL);  // obavestava main() i thread_for_accepted_clients
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -245,8 +245,8 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 			//connection was closed gracefully
 			//printf("Connection with server closed.\n");
 			printf("\nIzgubljena je konekcija sa serverom...\n");
-			ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
-			ReleaseSemaphore(FinishSignal, 2, NULL);
+			ReleaseSemaphore(FinishSignal_Directly, 3, NULL);
+			ReleaseSemaphore(FinishSignal, 1, NULL);
 			break;  // return 0;
 			/*
 			iResult = shutdown(connectSocket, SD_BOTH);
@@ -287,8 +287,8 @@ DWORD WINAPI function_recv_directly(LPVOID parametri) {
 				//printf("recv failed with error: %d\n", WSAGetLastError());
 				//closesocket(connectSocket);
 				printf("\nIzgubljena je konekcija sa serverom...\n");
-				ReleaseSemaphore(FinishSignal_Directly, 2, NULL);
-				ReleaseSemaphore(FinishSignal, 2, NULL);
+				ReleaseSemaphore(FinishSignal_Directly, 3, NULL);
+				ReleaseSemaphore(FinishSignal, 1, NULL);
 				break;  // return 0;
 				/*
 				iResult = shutdown(connectSocket, SD_BOTH);
@@ -752,7 +752,7 @@ DWORD WINAPI function_recv_coonectSockets_directly(LPVOID parametri) {
 	timeVal.tv_usec = 0;
 
 
-	while (WaitForSingleObject(FinishSignal, 1) == WAIT_TIMEOUT) {
+	while (WaitForSingleObject(FinishSignal_Directly, 1) == WAIT_TIMEOUT) {
 
 		if (count_connect_sockets == 0) {
 			continue;
@@ -928,13 +928,13 @@ int main()
 	HANDLE thread_recv_on_connectSockets;
 	DWORD thread_recv_on_connectSockets_id;
 
-	FinishSignal = CreateSemaphore(NULL, 0, 3, NULL);  // nit thread obavestava main() i thread_for_accept_clients i thread_recv_on_connectSockets kada se server iskljuci
-						// kada dodam jos nit za acceptedSockete koristiti ga i staviti da je max = 2...
-	FinishThreadSignal = CreateSemaphore(NULL, 0, 1, NULL);  // kada se prebacimo na direktnu komunikaciju obavestavamo nit thread da prestane sa radom
-
+	FinishSignal = CreateSemaphore(NULL, 0, 2, NULL);  // nit thread obavestava main()-SAMO U PROSLEDJIVANJU i thread_for_accept_clients-UVEK
+	FinishThreadSignal = CreateSemaphore(NULL, 0, 1, NULL);  // kada se prebacimo na direktnu komunikaciju main() obavestava nit thread da prestane sa radom
+	FinishSignal_Directly = CreateSemaphore(NULL, 0, 3, NULL);  // nit thread_directly_recv obavestava main()-SAMO U DIREKTNOJ i thread_send_message_directly-U DIREKTNOJ
+																					// i thread_recv_on_connectSockets-U DIREKTNOJ
 	StartMainSignal = CreateSemaphore(NULL, 1, 1, NULL);
 	StartSendMessageSignal = CreateSemaphore(NULL, 0, 1, NULL);
-	FinishSignal_Directly = CreateSemaphore(NULL, 0, 2, NULL);  // nit koja slusa servera tokom direktne obavestava main() i thread_send_message_directly kada se server iskljuci
+	
 
 	if (FinishThreadSignal && FinishSignal && StartSendMessageSignal && FinishSignal_Directly && StartMainSignal) {
 
@@ -1178,6 +1178,7 @@ int main()
 				WSACleanup();
 				return 1;
 			}
+			
 
 			printf("\nPress any key to exit: ");
 			_getch();
@@ -1187,6 +1188,7 @@ int main()
 			WSACleanup();
 
 			return 0;
+			
 
 		}
 		else  // ako je server nasilno zatvoren
@@ -1224,6 +1226,24 @@ int main()
 	iResult = ioctlsocket(connectSocket, FIONBIO, &mode);
 	if (iResult != NO_ERROR) {
 		printf("ioctlsocket failed with error: %ld\n", iResult);
+		iResult = shutdown(connectSocket, SD_BOTH);
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("Shutdown failed with error: %d\n", WSAGetLastError());
+			free(message);
+			closesocket(connectSocket);
+			WSACleanup();
+			return 1;
+		}
+
+		printf("\nPress any key to exit: ");
+		_getch();
+
+		free(message);
+		closesocket(connectSocket);
+		WSACleanup();
+
+		return 0;
 	}
 
 
@@ -1233,10 +1253,7 @@ int main()
 
 	ResumeThread(thread);  // nit koja ce primati sve poruke od servera za prvi tip komunikacije
 	ResumeThread(thread_for_accept_clients);  // nit koja ce osluskivati i accept-ovati ostale klijente
-	ResumeThread(thread_recv_on_connectSockets);  // nit koja ce primati poruke na connectSockets_directly soketima
 
-	//printf("*******************");
-	//Sleep(5000);
 
 	printf("Trenutan nacin komunikacije sa klijentima je preko servera.\n");
 	while (WaitForSingleObject(FinishSignal, 110) == WAIT_TIMEOUT) {
@@ -1311,14 +1328,15 @@ int main()
 	if (directly_communication != true) {  // nije u pitanju break zbog prealaza na direktnu, vec zbog gasenja servera...
 		// kopiranooooooooooooooooooooooooooooooo
 		printf("Server vise nije dostupan!");
-
-		/*
+		ReleaseSemaphore(FinishThreadSignal, 1, NULL);
+		ReleaseSemaphore(FinishSignal, 1, NULL);
 		if (thread != NULL) {
-
 			WaitForSingleObject(thread, INFINITE); // sacekati da se zavrsi nit --> NE TREBA JER SE VEC ZAVRSILA KADA JE SIGNALIZIRAN FinishSIgnal
 		}
-		*/
-
+		if (thread != NULL) {
+			WaitForSingleObject(thread_for_accept_clients, INFINITE); // sacekati da se zavrsi nit --> NE TREBA JER SE VEC ZAVRSILA KADA JE SIGNALIZIRAN FinishSIgnal
+		}
+		// obrisati sve resurse
 		SAFE_DELETE_HANDLE(FinishSignal);
 		SAFE_DELETE_HANDLE(FinishThreadSignal);  // NE TREBA GA SIGNALIZIRATI, ALI GA TREBA OBRISATI...
 		SAFE_DELETE_HANDLE(thread);
@@ -1328,7 +1346,7 @@ int main()
 
 		printf("\nPress any key to exit: ");
 		_getch();
-
+		// zatvoriti sve uticnice
 		iResult = shutdown(connectSocket, SD_BOTH);
 		if (iResult == SOCKET_ERROR)
 		{
@@ -1392,14 +1410,15 @@ int main()
 		WaitForSingleObject(thread, INFINITE);  // sacekati da se zavrsi nit
 	}
 	//SAFE_DELETE_HANDLE(FinishSignal);  ne smemo jer se koristi i u niti gde se radi accept, a ona i dalje treba da radi   // URADITI NA KRAJU PROGRAMA
-	SAFE_DELETE_HANDLE(FinishThreadSignal);
-	SAFE_DELETE_HANDLE(thread);
+	SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
+	SAFE_DELETE_HANDLE(thread);  // ok
 	DeleteCriticalSection(&critical_section_server);
 
 	/*---------------------------------------------------------------------------------------------*/
 
-	ResumeThread(thread_directly_recv);  // aktiviram nit
-	ResumeThread(thread_send_message_directly);  // aktiviram nit
+	ResumeThread(thread_directly_recv);  // primace poruke od servera
+	ResumeThread(thread_send_message_directly);  // pravice konekciju sa ostalim klijentima
+	ResumeThread(thread_recv_on_connectSockets);  // nit koja ce primati poruke na connectSockets_directly soketima
 
 	strcpy((char*)packet.flag, "3\0");  // direktno
 	printf("Presli ste na direktan nacin komunikacije sa klijentima!\n");
@@ -1644,7 +1663,6 @@ int main()
 	}
 
 	// OVDE IDE KOD KADA SERVER PADNE:
-	// zatvoriti sve ostale sokete....................
 	printf("Server vise nije dostupan!");
 	if (thread_directly_recv != NULL) {
 
@@ -1654,21 +1672,34 @@ int main()
 
 		WaitForSingleObject(thread_send_message_directly, INFINITE);  // sacekati da se zavrsi nit
 	}
+	if (thread_recv_on_connectSockets != NULL) {
 
+		WaitForSingleObject(thread_recv_on_connectSockets, INFINITE);  // sacekati da se zavrsi nit
+	}
+	if (thread_for_accept_clients != NULL) {
+
+		WaitForSingleObject(thread_for_accept_clients, INFINITE);  // sacekati da se zavrsi nit
+	}
+
+	// svi semafori su obrisani - ok
 	SAFE_DELETE_HANDLE(FinishSignal_Directly);
 	SAFE_DELETE_HANDLE(StartMainSignal);
 	SAFE_DELETE_HANDLE(StartSendMessageSignal);
 	SAFE_DELETE_HANDLE(FinishSignal);
-
+	 // obrisane sve niti - ok
 	SAFE_DELETE_HANDLE(thread_directly_recv);
 	SAFE_DELETE_HANDLE(thread_send_message_directly);
 	SAFE_DELETE_HANDLE(thread_for_accept_clients);
+	SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+
+	// k.s. doraditi...
 	DeleteCriticalSection(&critical_section_directly);
 	DeleteCriticalSection(&critical_section_hash_map);
 
 	printf("\nPress any key to exit: ");
 	_getch();
 
+	// zatvoriti sve ostale sokete....................
 	iResult = shutdown(connectSocket, SD_BOTH);
 	if (iResult == SOCKET_ERROR)
 	{
