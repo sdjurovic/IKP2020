@@ -16,7 +16,7 @@ unsigned long GenerateHashMapKey(unsigned char *str)
 
 void InitializeHashMap(Element** HashMap)
 {
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < MAX_DIRECTLY_CONNECTIONS; i++)
 	{
 		HashMap[i] = NULL;
 	}
@@ -28,7 +28,7 @@ bool AddValueToHashMap(Element** HashMap, ClientData* clientData)
 	newElement->clientData = clientData;
 	newElement->nextElement = NULL;
 
-	unsigned int key = GenerateHashMapKey(clientData->name) % MAX_CLIENTS;
+	unsigned int key = GenerateHashMapKey(clientData->name) % MAX_DIRECTLY_CONNECTIONS;
 
 	if (HashMap[key] == NULL)
 	{
@@ -51,7 +51,7 @@ bool AddValueToHashMap(Element** HashMap, ClientData* clientData)
 void ShowHashMap(Element** HashMap)
 {
 	printf("\n---- START ----\n");
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < MAX_DIRECTLY_CONNECTIONS; i++)
 	{
 		struct Element *tempElement = HashMap[i];
 		printf("[%d] --->", i);
@@ -67,7 +67,7 @@ void ShowHashMap(Element** HashMap)
 
 ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_DIRECTLY_CONNECTIONS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];
@@ -99,7 +99,7 @@ ClientData* FindValueInHashMap(Element** HashMap, unsigned char *clientName)
 
 bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_DIRECTLY_CONNECTIONS;
 	struct Element *tempElement = HashMap[key];
 	if (tempElement != NULL)
 	{
@@ -126,7 +126,7 @@ bool RemoveValueFromHashMap(Element** HashMap, unsigned char *clientName)
 
 bool ClientExistsInHashMap(Element** HashMap, unsigned char *clientName)
 {
-	unsigned int key = GenerateHashMapKey(clientName) % MAX_CLIENTS;
+	unsigned int key = GenerateHashMapKey(clientName) % MAX_DIRECTLY_CONNECTIONS;
 	if (HashMap[key] != NULL)
 	{
 		struct Element *tempElement = HashMap[key];

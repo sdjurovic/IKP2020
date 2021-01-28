@@ -38,7 +38,7 @@ SOCKET connectSocket;  // socket used to communicate with server
 SOCKET connectSockets_directly[MAX_DIRECTLY_CONNECTIONS];  // sockets used to communicate with other clients
 int count_connect_sockets;
 SOCKET listenSocket;  // Socket used for listening for other clients 
-SOCKET acceptedSockets[MAX_CLIENTS];  // Socket used for communication with other client
+SOCKET acceptedSockets[MAX_DIRECTLY_CONNECTIONS];  // Socket used for communication with other client
 int counter_accepted_clients;
 
 
@@ -48,6 +48,7 @@ HANDLE FinishSignal_Directly;
 
 CRITICAL_SECTION critical_section_hash_map;
 CRITICAL_SECTION critical_section_std;
+CRITICAL_SECTION critical_section_server;  // serverski
 
 
 struct Client_Information_Directly  // dobijam od servera informacije o klijentu sa kojim treba da se povezem
@@ -64,7 +65,7 @@ struct Directly_Message {
 	unsigned char flag[2];  // "0" username klijenta koji se konektovao - ja, "1" poruka od klijenta koji se konektovao - od mene
 };
 
-struct Element* HashMap[MAX_CLIENTS];
+struct Element* HashMap[MAX_DIRECTLY_CONNECTIONS];
 
 DWORD WINAPI thread_function(LPVOID parametri) {
 
@@ -528,7 +529,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 
 	while (WaitForSingleObject(FinishSignal, 1) == WAIT_TIMEOUT) {
 
-		if (counter_accepted_clients < MAX_CLIENTS) {  
+		if (counter_accepted_clients < MAX_DIRECTLY_CONNECTIONS) {
 			FD_SET(listenSocket, &readfds);
 		}
 
@@ -549,7 +550,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 		}
 		else {  // desio se neki dogadjaj
 
-			if (FD_ISSET(listenSocket, &readfds) && counter_accepted_clients < MAX_CLIENTS) {
+			if (FD_ISSET(listenSocket, &readfds) && counter_accepted_clients < MAX_DIRECTLY_CONNECTIONS) {
 
 				// Struct for information about connected client
 				sockaddr_in clientAddr;
@@ -575,7 +576,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 				if (iResult != NO_ERROR) {
 					printf("ioctlsocket failed with error: %ld\n", iResult);
 
-					for (int j = 0; j < MAX_CLIENTS; j++)
+					for (int j = 0; j < MAX_DIRECTLY_CONNECTIONS; j++)
 					{
 						EnterCriticalSection(&critical_section_hash_map);
 						struct Element *tempClientElement = HashMap[j];
@@ -679,7 +680,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 					}
 					else if (iResult == 0)	// Check if shutdown command is received   // ako je client poslao shutdown signal, hoce da se iskljuci iz komunikacije:
 					{
-						for (int j = 0; j < MAX_CLIENTS; j++)
+						for (int j = 0; j < MAX_DIRECTLY_CONNECTIONS; j++)
 						{
 							EnterCriticalSection(&critical_section_hash_map);
 							struct Element *tempClientElement = HashMap[j];
@@ -727,7 +728,7 @@ DWORD WINAPI function_accept_clients(LPVOID parametri) {
 						}
 						else {
 
-							for (int j = 0; j < MAX_CLIENTS; j++)
+							for (int j = 0; j < MAX_DIRECTLY_CONNECTIONS; j++)
 							{
 								EnterCriticalSection(&critical_section_hash_map);
 								struct Element *tempClientElement = HashMap[j];
@@ -836,12 +837,12 @@ DWORD WINAPI function_recv_connectSockets_directly(LPVOID parametri) {
 					{
 						EnterCriticalSection(&critical_section_std);
 						printf("%s\n", recvbuf);
-						EnterCriticalSection(&critical_section_std);
+						LeaveCriticalSection(&critical_section_std);
 
 					}
 					else if (iResult == 0)	// Check if shutdown command is received   // ako je client poslao shutdown signal, hoce da se iskljuci iz komunikacije:
 					{
-						for (int j = 0; j < MAX_CLIENTS; j++)
+						for (int j = 0; j < MAX_DIRECTLY_CONNECTIONS; j++)
 						{
 							EnterCriticalSection(&critical_section_hash_map);
 							struct Element *tempClientElement = HashMap[j];
@@ -889,7 +890,7 @@ DWORD WINAPI function_recv_connectSockets_directly(LPVOID parametri) {
 						}
 						else {
 
-							for (int j = 0; j < MAX_CLIENTS; j++)
+							for (int j = 0; j < MAX_DIRECTLY_CONNECTIONS; j++)
 							{
 								EnterCriticalSection(&critical_section_hash_map);
 								struct Element *tempClientElement = HashMap[j];
@@ -977,6 +978,7 @@ int main()
 
 		InitializeCriticalSection(&critical_section_hash_map);
 		InitializeCriticalSection(&critical_section_std);
+		InitializeCriticalSection(&critical_section_server);
 		thread = CreateThread(NULL, 0, &thread_function, NULL, CREATE_SUSPENDED, &thread_id);
 		thread_directly_recv = CreateThread(NULL, 0, &function_recv_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_directly_recv_id);
 		thread_send_message_directly = CreateThread(NULL, 0, &function_send_message_directly, client_information_for_thread, CREATE_SUSPENDED, &thread_send_message_directly_id);
@@ -1000,6 +1002,7 @@ int main()
 
 		DeleteCriticalSection(&critical_section_hash_map);
 		DeleteCriticalSection(&critical_section_std);
+		DeleteCriticalSection(&critical_section_server);
 
 		return 1;
 
@@ -1021,13 +1024,13 @@ int main()
 
 	connectSocket = INVALID_SOCKET;  // za konekciju sa serverom
 
-	for (int i = 0; i < MAX_CLIENTS; i++) {  // za slanje zahteva za konekciju sa klijentima
+	for (int i = 0; i < MAX_DIRECTLY_CONNECTIONS; i++) {  // za slanje zahteva za konekciju sa klijentima
 		connectSockets_directly[i] = INVALID_SOCKET;
 	}
 	count_connect_sockets = 0;
 
 	listenSocket = INVALID_SOCKET;
-	for (int i = 0; i < MAX_CLIENTS; i++) {
+	for (int i = 0; i < MAX_DIRECTLY_CONNECTIONS; i++) {
 		acceptedSockets[i] = INVALID_SOCKET;
 	}
 	counter_accepted_clients = 0;
