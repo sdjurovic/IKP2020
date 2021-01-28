@@ -29,6 +29,7 @@
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
+void KrajPrograma();
 
 HANDLE FinishSignal;
 HANDLE FinishThreadSignal;
@@ -401,6 +402,10 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				closesocket(coonectSockets_directly[count_connect_sockets - 1]);
 				coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 				count_connect_sockets--;
+				EnterCriticalSection(&critical_section_hash_map);
+				RemoveValueFromHashMap(HashMap, newClient->name);
+				ShowHashMap(HashMap);
+				LeaveCriticalSection(&critical_section_hash_map);
 				//WSACleanup();
 				ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
 				continue;
@@ -426,6 +431,10 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 				closesocket(coonectSockets_directly[count_connect_sockets - 1]);
 				coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
 				count_connect_sockets--;
+				EnterCriticalSection(&critical_section_hash_map);
+				RemoveValueFromHashMap(HashMap, newClient->name);
+				ShowHashMap(HashMap);
+				LeaveCriticalSection(&critical_section_hash_map);
 				//WSACleanup();
 				ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
 				continue;
@@ -442,7 +451,16 @@ DWORD WINAPI function_send_message_directly(LPVOID parametri) {
 			
 			iResult = ioctlsocket(coonectSockets_directly[count_connect_sockets - 1], FIONBIO, &mode);
 			if (iResult != NO_ERROR) {
-				printf("ioctlsocket failed with error: %ld\n", iResult);
+				//printf("ioctlsocket failed with error: %ld\n", iResult);
+				printf("Poruka nije poslata, jer klijent vise nije dostupan!\n");
+				// poravnavanje socket-a nije potrebno jer je uvek u pitanju poslednji
+				closesocket(coonectSockets_directly[count_connect_sockets - 1]);
+				coonectSockets_directly[count_connect_sockets - 1] = INVALID_SOCKET;
+				count_connect_sockets--;
+				EnterCriticalSection(&critical_section_hash_map);
+				RemoveValueFromHashMap(HashMap, newClient->name);
+				ShowHashMap(HashMap);
+				LeaveCriticalSection(&critical_section_hash_map);
 				ReleaseSemaphore(StartMainSignal, 1, NULL);  // znak da main() zavrti petlju za unos novog klijenta
 				continue;
 			}
@@ -1331,33 +1349,25 @@ int main()
 		ReleaseSemaphore(FinishThreadSignal, 1, NULL);
 		ReleaseSemaphore(FinishSignal, 1, NULL);
 		if (thread != NULL) {
-			WaitForSingleObject(thread, INFINITE); // sacekati da se zavrsi nit --> NE TREBA JER SE VEC ZAVRSILA KADA JE SIGNALIZIRAN FinishSIgnal
+			WaitForSingleObject(thread, INFINITE);
 		}
-		if (thread != NULL) {
-			WaitForSingleObject(thread_for_accept_clients, INFINITE); // sacekati da se zavrsi nit --> NE TREBA JER SE VEC ZAVRSILA KADA JE SIGNALIZIRAN FinishSIgnal
+		if (thread_for_accept_clients != NULL) {
+			WaitForSingleObject(thread_for_accept_clients, INFINITE);
 		}
-		// obrisati sve resurse
-		SAFE_DELETE_HANDLE(FinishSignal);
-		SAFE_DELETE_HANDLE(FinishThreadSignal);  // NE TREBA GA SIGNALIZIRATI, ALI GA TREBA OBRISATI...
-		SAFE_DELETE_HANDLE(thread);
-		DeleteCriticalSection(&critical_section_server);
+		
+		// obrisane sve niti - ok
+		SAFE_DELETE_HANDLE(thread_directly_recv);
+		SAFE_DELETE_HANDLE(thread_send_message_directly);
+		SAFE_DELETE_HANDLE(thread_for_accept_clients);
+		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
+
+		//// k.s. doraditi...
+		//DeleteCriticalSection(&critical_section_directly);
+		//DeleteCriticalSection(&critical_section_hash_map);
+
+		KrajPrograma();
 
 		free(message);
-
-		printf("\nPress any key to exit: ");
-		_getch();
-		// zatvoriti sve uticnice
-		iResult = shutdown(connectSocket, SD_BOTH);
-		if (iResult == SOCKET_ERROR)
-		{
-			printf("Shutdown failed with error: %d\n", WSAGetLastError());
-			closesocket(connectSocket);
-			WSACleanup();
-			return 1;
-		}
-
-		closesocket(connectSocket);
-		WSACleanup();
 
 		return 0;
 		// dovdeeeeeeeeeeeeeeeeeeeeeeeeeeeee
@@ -1373,34 +1383,30 @@ int main()
 	{
 		//printf("send failed with error: %d\n", WSAGetLastError());
 		printf("Server vise nije dostupan!");
-
 		ReleaseSemaphore(FinishThreadSignal, 1, NULL);
+		ReleaseSemaphore(FinishSignal, 1, NULL);
 		if (thread != NULL) {
-
-			WaitForSingleObject(thread, INFINITE);  // sacekati da se zavrsi nit
+			WaitForSingleObject(thread, INFINITE);
 		}
-
-		SAFE_DELETE_HANDLE(FinishSignal);
-		SAFE_DELETE_HANDLE(FinishThreadSignal);
-		SAFE_DELETE_HANDLE(thread);
-		DeleteCriticalSection(&critical_section_server);
-
-		printf("\nPress any key to exit: ");
-		_getch();
-
-		iResult = shutdown(connectSocket, SD_BOTH);
-		if (iResult == SOCKET_ERROR)
-		{
-			printf("Shutdown failed with error: %d\n", WSAGetLastError());
-			closesocket(connectSocket);
-			WSACleanup();
-			return 1;
+		if (thread_for_accept_clients != NULL) {
+			WaitForSingleObject(thread_for_accept_clients, INFINITE);
 		}
+		
+		SAFE_DELETE_HANDLE(thread_directly_recv);
+		SAFE_DELETE_HANDLE(thread_send_message_directly);
+		SAFE_DELETE_HANDLE(thread_for_accept_clients);
+		SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
 
-		closesocket(connectSocket);
-		WSACleanup();
+		//// k.s. doraditi...
+		//DeleteCriticalSection(&critical_section_directly);
+		//DeleteCriticalSection(&critical_section_hash_map);
 
-		return 1;
+		KrajPrograma();
+
+		free(message);
+
+		return 0;
+
 	}
 
 	// gasimo nit koja je do sada primala poruke od servera i oslobadjamo resurse...
@@ -1409,13 +1415,9 @@ int main()
 
 		WaitForSingleObject(thread, INFINITE);  // sacekati da se zavrsi nit
 	}
-	//SAFE_DELETE_HANDLE(FinishSignal);  ne smemo jer se koristi i u niti gde se radi accept, a ona i dalje treba da radi   // URADITI NA KRAJU PROGRAMA
 	SAFE_DELETE_HANDLE(FinishThreadSignal);  // ok
 	SAFE_DELETE_HANDLE(thread);  // ok
-	DeleteCriticalSection(&critical_section_server);
-
-	/*---------------------------------------------------------------------------------------------*/
-
+	/*-------------------------------------------------------------------------------------------------------------------------------*/
 	ResumeThread(thread_directly_recv);  // primace poruke od servera
 	ResumeThread(thread_send_message_directly);  // pravice konekciju sa ostalim klijentima
 	ResumeThread(thread_recv_on_connectSockets);  // nit koja ce primati poruke na connectSockets_directly soketima
@@ -1454,6 +1456,7 @@ int main()
 			iResult = send(connectSocket, (char*)&packet, sizeof(packet), 0);
 			if (iResult == SOCKET_ERROR)
 			{
+				printf("Server vise nije dostupan!\n");
 				break;
 			}
 
@@ -1658,12 +1661,9 @@ int main()
 
 
 
-
-
 	}
 
 	// OVDE IDE KOD KADA SERVER PADNE:
-	printf("Server vise nije dostupan!");
 	if (thread_directly_recv != NULL) {
 
 		WaitForSingleObject(thread_directly_recv, INFINITE);  // sacekati da se zavrsi nit
@@ -1681,72 +1681,21 @@ int main()
 		WaitForSingleObject(thread_for_accept_clients, INFINITE);  // sacekati da se zavrsi nit
 	}
 
-	// svi semafori su obrisani - ok
-	SAFE_DELETE_HANDLE(FinishSignal_Directly);
-	SAFE_DELETE_HANDLE(StartMainSignal);
-	SAFE_DELETE_HANDLE(StartSendMessageSignal);
-	SAFE_DELETE_HANDLE(FinishSignal);
 	 // obrisane sve niti - ok
 	SAFE_DELETE_HANDLE(thread_directly_recv);
 	SAFE_DELETE_HANDLE(thread_send_message_directly);
 	SAFE_DELETE_HANDLE(thread_for_accept_clients);
 	SAFE_DELETE_HANDLE(thread_recv_on_connectSockets);
 
-	// k.s. doraditi...
-	DeleteCriticalSection(&critical_section_directly);
-	DeleteCriticalSection(&critical_section_hash_map);
+	//// k.s. doraditi...
+	//DeleteCriticalSection(&critical_section_directly);
+	//DeleteCriticalSection(&critical_section_hash_map);
 
-	printf("\nPress any key to exit: ");
-	_getch();
-
-	// zatvoriti sve ostale sokete....................
-	iResult = shutdown(connectSocket, SD_BOTH);
-	if (iResult == SOCKET_ERROR)
-	{
-		printf("Shutdown failed with error: %d\n", WSAGetLastError());
-		closesocket(connectSocket);
-		WSACleanup();
-		return 1;
-	}
+	KrajPrograma();
 
 	free(directly_message);
 
-	closesocket(connectSocket);
-	WSACleanup();
-
 	return 0;
-
-
-
-
-
-
-	// obrisati ovo ispod ako ne bude trebalo...
-	/*--------------------------------------------------------------------------------------------------*/
-	// Shutdown the connection since we're done
-	iResult = shutdown(connectSocket, SD_BOTH);  // na dalje se sprecava i slanje i primanje
-	// Check if connection is succesfully shut down.
-	if (iResult == SOCKET_ERROR)
-	{
-		printf("Shutdown failed with error: %d\n", WSAGetLastError());
-		closesocket(connectSocket);
-		WSACleanup();
-		return 1;
-	}
-	/*--------------------------------------------------------------------------------------------------*/
-
-	// DODALA:
-	printf("\nPress any key to exit: ");
-	_getch(); // da bi sacekao nas znak da zatvori socket
-
-	free(message);
-
-	// cleanup
-	closesocket(connectSocket);
-	WSACleanup();
-
-	return 0;
-
 
 }
 
@@ -1760,4 +1709,54 @@ bool InitializeWindowsSockets()
 		return false;
 	}
 	return true;
+}
+
+void KrajPrograma() {
+
+	int iResult = 0;
+
+	// svi semafori su obrisani - ok
+	SAFE_DELETE_HANDLE(FinishSignal_Directly);
+	SAFE_DELETE_HANDLE(StartMainSignal);
+	SAFE_DELETE_HANDLE(StartSendMessageSignal);
+	SAFE_DELETE_HANDLE(FinishSignal);
+	
+	// k.s. doraditi...
+	DeleteCriticalSection(&critical_section_directly);
+	DeleteCriticalSection(&critical_section_hash_map);
+
+	printf("\nPress any key to exit: ");
+	_getch();
+
+	// zatvoriti sve ostale sokete....................
+	// soket sa serverom:
+	iResult = shutdown(connectSocket, SD_BOTH);
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("Shutdown failed with error: %d\n", WSAGetLastError());
+	}
+	closesocket(connectSocket);
+
+	// soketi sa klijentima:
+	for (int i = 0; i < counter_accepted_clients; i++) {
+		iResult = shutdown(acceptedSockets[i], SD_BOTH);
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("Shutdown failed with error: %d\n", WSAGetLastError());
+		}
+		closesocket(acceptedSockets[i]);
+	}
+
+	for (int i = 0; i < count_connect_sockets; i++) {
+		iResult = shutdown(coonectSockets_directly[i], SD_BOTH);
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("Shutdown failed with error: %d\n", WSAGetLastError());
+		}
+		closesocket(coonectSockets_directly[i]);
+	}
+
+	WSACleanup();
+
+	return;
 }
