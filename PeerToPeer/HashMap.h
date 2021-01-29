@@ -1,7 +1,7 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-#define MAX_CLIENTS 10
+#define MAX_CLIENTS 20
 #define MAX_USERNAME 25
 #define MAX_ADDRESS 50
 #define MAXLEN 256
@@ -30,7 +30,6 @@ bool AddValueToHashMap(ClientData *clientData);
 ClientData* FindValueInHashMap(unsigned char *clientName);
 bool RemoveValueFromHashMap(unsigned char *clientName);
 bool ClientExistsInHashMap(unsigned char *name);
-//bool UpdateClientInHashMap(unsigned char *name);
 bool ChangeClientsDirectlyValue(unsigned char *name, char newValue[2]);
 
 #endif

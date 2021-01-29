@@ -59,7 +59,6 @@ void ShowHashMap()
 		while (tempElement)
 		{
 			printf(" %s, %s, %d, %s, %d, %s |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port, tempElement->clientData->listen_address, tempElement->clientData->listen_port, tempElement->clientData->directly);
-			//printf(" %s, %s, %d |", tempElement->clientData->name, tempElement->clientData->address, tempElement->clientData->port);
 			tempElement = tempElement->nextElement;
 		}
 		printf(" NULL\n");

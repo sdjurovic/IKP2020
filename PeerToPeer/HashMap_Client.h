@@ -10,7 +10,7 @@ typedef struct ClientData {
 	unsigned char name[MAX_USERNAME];
 	unsigned char address[MAX_ADDRESS];
 	unsigned int port;
-	unsigned char socket_type[2];  // 0 ako je u connected, a 1 ako je u accepted socketima 
+	unsigned char socket_type[2];
 } ClientData;
 
 struct Element
